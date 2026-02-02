@@ -1,0 +1,44 @@
+# Business Central AL Project .gitignore
+
+# Build output
+.alpackages/
+.output/
+*.app
+
+# VS Code settings (optional - some teams commit these)
+.vscode/
+.code-workspace
+
+# User-specific files
+*.user
+
+# Compiled files
+rad.json
+.alcache/
+
+# Generated files
+translations/*.g.xlf
+
+# Launch configurations with sensitive data
+# Uncomment if launch.json contains credentials
+# launch.json
+
+# Environment-specific settings
+# Uncomment if you have sensitive data
+# app.json
+
+# Logs
+*.log
+
+# Windows specific
+Thumbs.db
+Desktop.ini
+
+# Mac specific
+.DS_Store
+
+# Temporary files
+~$*
+*.tmp
+*.bak
+*.swp
