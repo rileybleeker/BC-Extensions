@@ -1,138 +1,393 @@
-# ALProject10 - Business Central Extensions
+# ALProject10 - Business Central Manufacturing & Quality Extensions
 
-This repository contains custom Business Central AL extensions for quality management and inventory alerting.
+Comprehensive Business Central AL extensions for manufacturing operations, quality management, and inventory monitoring.
 
-## Features
+## Features Overview
 
-### 1. Quality Management Enhancement
-Validates lot quality status and prevents selection of non-passed lots during inventory transactions.
+### 1. Production Order Upper Tolerance Management
+Prevents over-production by enforcing upper tolerance limits on production orders.
 
 **Files:**
-- `Quality Management Codeunit.al` - Event subscribers for lot validation
+- `Tab-Ext50100.ProdOrderLine.al` - Production Order Line extension
+- `Upper Tolerance Validation Codeunit.al` - Output posting validation
+- `Prod Order Line Sub Page.al` - UI extensions for production order pages
+- `Manufacutring Setup Table.al` - Configuration storage
 
 **Functionality:**
-- Early validation when users enter lot numbers in Item Tracking Lines
-- Prevents selection of Pending/Failed lots before posting
-- Three-layer validation: Tracking Specification, Reservation Entry, and Item Ledger Entry
+- Automatically calculates upper tolerance based on order quantity and percentage from Manufacturing Setup
+- Validates output posting against upper tolerance before allowing post
+- Prevents accidental over-production
+- Displays upper tolerance on production order pages for visibility
 
-### 2. Low Inventory Alert Integration
-Real-time integration with Azure Logic Apps and Google Sheets for inventory monitoring.
+**Business Value:**
+- Reduces material waste from over-production
+- Ensures compliance with customer order quantities
+- Provides clear visibility of acceptable production limits
+
+---
+
+### 2. Reservation Date Synchronization
+Automatically synchronizes dates between Production Orders and Sales Orders to prevent reservation date conflicts.
+
+**Files:**
+- `Reservation Date Sync Codeunit.al` - Date synchronization logic
+- `Tab-Ext50100.ProdOrderLine.al` - Event triggers on Ending Date-Time changes
+
+**Functionality:**
+- Monitors changes to Production Order Line Ending Date-Time
+- Automatically updates linked Sales Line Shipment Date
+- Updates Reservation Entry dates to maintain consistency
+- Prevents "date conflict with existing reservations" errors
+- Runs on both OnBeforeValidate and OnAfterValidate to handle BC's date recalculation
+
+**Business Value:**
+- Eliminates manual date synchronization
+- Prevents user frustration from reservation errors
+- Maintains data integrity between production and sales
+- Enables smooth production schedule adjustments
+
+---
+
+### 3. Quality Management System
+Complete quality testing workflow for lot-tracked inventory with validation to prevent shipment of non-passed lots.
+
+**Files:**
+- `Quality Order Table.al` - Quality test records
+- `Quality Orders Page.al` - Quality testing UI
+- `Quality Test Status Enum.al` - Status enumeration (Pending/Passed/Failed)
+- `Quality Management Codeunit.al` - Validation logic and helper procedures
+
+**Functionality:**
+- Create quality orders for incoming lot-tracked inventory
+- Track test status: Pending, Passed, or Failed
+- Record tested date and tested by user automatically
+- **Multi-layer validation** prevents selection of non-passed lots:
+  - **Immediate validation** when entering lot number in Item Tracking Lines
+  - **Reservation validation** when creating reservations
+  - **Posting validation** as final safety net before creating Item Ledger Entry
+- Mark as Passed/Failed actions on Quality Orders page
+
+**Business Value:**
+- Ensures only quality-approved inventory is shipped
+- Provides audit trail of quality testing
+- Prevents costly mistakes from shipping defective products
+- Improves customer satisfaction through quality control
+
+---
+
+### 4. Low Inventory Alert Integration
+Real-time inventory monitoring with threshold crossing detection, integrated with Azure Logic Apps and Google Sheets.
 
 **Files:**
 - `Low Inventory Alert Codeunit.al` - Main integration logic
-- `Inventory Alert Log Table.al` - Audit table
-- `Inventory Alert Log Page.al` - UI for viewing alert history
-- `Manufacutring Setup Table.al` - Configuration fields
+- `Inventory Alert Log Table.al` - Alert audit trail
+- `Inventory Alert Log Page.al` - Alert history UI
+- `Manufacutring Setup Table.al` - Integration configuration
 - `Manufacturing Setup Page.al` - Setup UI
 
 **Functionality:**
-- Monitors inventory levels in real-time
-- Alerts when inventory crosses below safety stock threshold
-- Location-specific safety stock support
-- HTTP POST to Azure Logic Apps
-- Integration with Google Sheets via Logic Apps
-- Fire-and-forget pattern (doesn't block posting on HTTP failures)
-- Comprehensive logging
+- Monitors inventory levels in real-time during posting
+- Detects threshold crossing (when inventory drops from ABOVE to BELOW safety stock)
+- Location-aware: Uses Stockkeeping Unit safety stock if available, falls back to item level
+- Sends HTTP POST to Azure Logic Apps with JSON payload
+- Azure Logic Apps writes to Google Sheets for visibility
+- **Fire-and-forget pattern**: HTTP failures don't block inventory posting
+- Comprehensive logging of success/failure for troubleshooting
 
 **Architecture:**
 ```
 Business Central (Client)     Azure Logic Apps (Server)     Google Sheets
-==========================     =========================     =============
+========================       =========================     =============
 Item Posting Event
      |
      v
 Threshold Detection ------HTTP POST------> HTTP Trigger
-(Calculate Before/After)    (JSON)              |
+(Before/After calc)       (JSON)                |
                                                 v
                                          Parse JSON
                                                 |
                                                 v
-                                         Google Sheets ----> Append Row
+                                         Google Sheets ---------> Append Row
                                          Connector
 ```
+
+**Business Value:**
+- Real-time awareness of low inventory situations
+- Proactive reordering reduces stockouts
+- Centralized visibility in Google Sheets for team collaboration
+- Prevents disruption to production from material shortages
+
+---
 
 ## Configuration
 
 ### Manufacturing Setup
-Navigate to **Manufacturing Setup** and configure:
+Navigate to **Manufacturing Setup** in Business Central:
 
-1. **Enable Inventory Alerts**: Toggle to enable/disable alerts
-2. **Logic Apps Endpoint URL**: Azure Logic Apps HTTP trigger URL
-3. **Logic Apps API Key**: Optional API key for authentication
+#### Upper Tolerance
+- **Field**: Upper Tolerance (Decimal)
+- **Purpose**: Percentage to calculate acceptable over-production
+- **Example**: Set to 0.05 for 5% over-production allowance
 
-### Safety Stock
-Set safety stock thresholds at:
-- **Item level**: Item Card → Planning tab → Safety Stock Quantity
+#### Low Inventory Alert Integration
+- **Enable Inventory Alerts**: Toggle to enable/disable real-time alerts
+- **Logic Apps Endpoint URL**: Azure Logic Apps HTTP trigger URL (500 chars)
+- **Logic Apps API Key**: Optional API key for authentication (masked field)
+
+### Safety Stock Configuration
+Set thresholds for low inventory alerts:
+- **Item level**: Item Card → Planning → Safety Stock Quantity
 - **Location level**: Stockkeeping Unit → Safety Stock Quantity (takes precedence)
+
+### Quality Management
+No configuration required - automatically active after extension installation.
+
+---
 
 ## Azure Logic Apps Setup
 
+### Prerequisites
+- Azure subscription
+- Google account with Sheets access
+
+### Setup Steps
 1. Create Logic App in Azure Portal
-2. Add HTTP Trigger (When an HTTP request is received)
-3. Add Google Sheets action (Insert row)
-4. Map JSON fields to columns:
-   - ItemNo
-   - Description
-   - CurrentInventory
-5. Copy HTTP POST URL to BC Manufacturing Setup
+2. Add **HTTP Trigger**: When an HTTP request is received
+3. Configure JSON schema:
+```json
+{
+  "ItemNo": "string",
+  "Description": "string",
+  "CurrentInventory": "number"
+}
+```
+4. Add **Google Sheets** action: Insert row
+5. Map fields to columns
+6. Copy HTTP POST URL
+7. Paste into BC Manufacturing Setup
+
+For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md).
+
+---
+
+## Object IDs Reference
+
+| Object Type | ID | Name | Purpose |
+|-------------|-----|------|---------|
+| **Enumerations** ||||
+| Enum | 50100 | Quality Test Status | Pending/Passed/Failed statuses |
+| **Tables** ||||
+| Table | 50100 | Quality Order | Quality test records |
+| Table | 50101 | Inventory Alert Log | Alert history tracking |
+| **Table Extensions** ||||
+| Table Extension | 50101 | Prod. Order Line Ext | Upper Tolerance, Sync with DB, date sync |
+| Table Extension | 50102 | Manufacturing Setup Ext | Upper Tolerance %, Alert config |
+| **Pages** ||||
+| Page | 50100 | Quality Orders | Quality testing UI |
+| Page | 50101 | Inventory Alert Log | Alert history view |
+| **Page Extensions** ||||
+| Page Extension | 50102 | Prod. Order Line Sub Ext | Shows Upper Tolerance field |
+| Page Extension | 50103 | Manufacturing Setup Ext | Alert configuration UI |
+| Page Extension | 50104 | Released Prod. Order Ext | Upper Tolerance on released orders |
+| **Codeunits** ||||
+| Codeunit | 50100 | Upper Tolerance Validation | Validates output posting |
+| Codeunit | 50101 | Reservation Date Sync | Syncs prod/sales dates |
+| Codeunit | 50100 | Quality Management | Lot validation logic |
+| Codeunit | 50103 | Low Inventory Alert | Inventory monitoring & alerting |
+
+---
+
+## Key Algorithms
+
+### Upper Tolerance Calculation
+```al
+UpperTolerance := Quantity * MfgSetup."Upper Tolerance"
+// Example: Order Qty 1000 * 5% = 1050 max allowed
+```
+
+### Threshold Crossing Detection
+```al
+InventoryBefore := SumLedgerEntries(UpToEntryNo - 1);
+InventoryAfter := InventoryBefore + CurrentQuantity;
+
+if (InventoryBefore > SafetyStock) and (InventoryAfter <= SafetyStock) then
+    SendAlert(); // Only fires when crossing threshold
+```
+
+### Reservation Date Synchronization
+```al
+// Find Production Order → Reservation Entry → Sales Line
+// Update Sales Line Shipment Date = Prod Order Ending Date
+// Reservation Entry dates automatically update
+```
+
+---
 
 ## Testing
 
-Test threshold crossing:
-1. Set Safety Stock = 100 for an item
-2. Ensure Current Inventory = 105
-3. Post negative adjustment of -10
-4. Expected: Alert sent, row appears in Google Sheets
-5. Verify: Check Inventory Alert Log in BC
+Basic smoke tests for each feature:
 
-## Known Limitations
+### Test 1: Upper Tolerance
+1. Set Manufacturing Setup → Upper Tolerance = 0.05 (5%)
+2. Create Prod. Order with Quantity = 100 (Upper Tolerance = 105)
+3. Post Output of 106
+4. Expected: Error preventing over-production
 
-- Currently sends 3 fields (ItemNo, Description, CurrentInventory)
-- Can be expanded to include Location, Vendor, Timestamp, etc.
-- Debug messages currently active in code
+### Test 2: Reservation Date Sync
+1. Create Sales Order with Shipment Date = Jan 1
+2. Create Prod. Order linked to Sales Order with Ending Date = Jan 1
+3. Change Prod. Order Ending Date to Jan 5
+4. Expected: Sales Line Shipment Date automatically updates to Jan 5 (no error)
 
-## Development Notes
+### Test 3: Quality Management
+1. Create Quality Order with Lot = LOT-001, Status = Pending
+2. Try to create Sales Order with LOT-001
+3. Expected: Error preventing selection
+4. Mark Quality Order as Passed
+5. Now LOT-001 should be selectable
 
-### Threshold Detection Algorithm
-Alerts only when inventory **crosses** from above to below safety stock:
-```al
-if (InventoryBeforePosting > SafetyStockQty) and (InventoryAfterPosting <= SafetyStockQty) then
-    SendAlert();
-```
+### Test 4: Low Inventory Alert
+1. Item with Safety Stock = 100, Current Inventory = 105
+2. Post negative adjustment of -10 (105 → 95)
+3. Expected: Alert in Google Sheets, entry in Inventory Alert Log
 
-This prevents duplicate alerts when inventory is already below threshold.
+For comprehensive test cases, see [docs/TESTING.md](docs/TESTING.md).
 
-### Data Sources
-- **ItemNo**: Item Ledger Entry (transaction record)
-- **Description**: Item table (master data)
-- **CurrentInventory**: Calculated by summing all Item Ledger Entries for Item+Location
+---
 
-## Object IDs
+## Documentation
 
-| Object Type | ID | Name |
-|-------------|-----|------|
-| Codeunit | 50100 | Quality Management |
-| Codeunit | 50103 | Low Inventory Alert |
-| Table | 50101 | Inventory Alert Log |
-| Table Extension | 50102 | Manufacturing Setup Ext |
-| Page | 50101 | Inventory Alert Log |
-| Page Extension | 50103 | Manufacturing Setup Ext |
+- **[NOTES.md](NOTES.md)** - Development notes, lessons learned, technical insights
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Detailed technical architecture
+- **[docs/SETUP.md](docs/SETUP.md)** - Complete setup instructions
+- **[docs/TESTING.md](docs/TESTING.md)** - Test cases and procedures
+- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+
+---
 
 ## Version History
 
-### Version 1.0.0
-- Initial release
-- Quality Management lot validation
-- Low Inventory Alert integration with Azure Logic Apps and Google Sheets
+### Version 1.0.0 (2026-02-01)
+- Initial release with all four major features
+- Production Order Upper Tolerance Management
+- Reservation Date Synchronization
+- Quality Management System with multi-layer validation
+- Low Inventory Alert Integration with Azure Logic Apps
+
+---
+
+## Installation
+
+### From VS Code (Development)
+1. Open project in VS Code
+2. Press `F5` to publish
+3. Select BC environment
+
+### From .app File (Production)
+1. Build: `Alt+F6` in VS Code
+2. BC → Extension Management → Upload Extension
+3. Select `ALProject10.app`
+4. Deploy → Install
+
+### Post-Installation Configuration
+1. Manufacturing Setup → Set Upper Tolerance percentage
+2. Manufacturing Setup → Configure Low Inventory Alert integration
+3. Set Safety Stock on Items or Stockkeeping Units
+4. Create Quality Orders for incoming inventory
+
+---
+
+## Business Impact
+
+### Efficiency Gains
+- Eliminates manual date synchronization between prod orders and sales orders
+- Reduces time spent troubleshooting reservation date conflicts
+- Automated quality validation prevents manual checking
+
+### Cost Savings
+- Reduces material waste from over-production (Upper Tolerance)
+- Prevents costly errors from shipping defective products (Quality Management)
+- Minimizes stockouts through proactive alerting (Low Inventory Alerts)
+
+### Compliance & Quality
+- Enforces quality control processes
+- Provides audit trail of quality testing
+- Ensures production stays within acceptable limits
+
+### Visibility & Collaboration
+- Google Sheets integration provides centralized inventory visibility
+- Alert Log enables troubleshooting and analysis
+- Quality Orders page gives clear status of lot testing
+
+---
+
+## Known Limitations
+
+- Debug messages currently active in Low Inventory Alert codeunit (for troubleshooting)
+- JSON payload simplified to 3 fields (can be expanded to 13 fields)
+- Sales Line Ext.al is commented out (legacy test code)
+- No retry logic in BC for failed HTTP calls (handled by Azure Logic Apps)
+
+---
+
+## Future Enhancements
+
+### Version 1.1.0 (Planned)
+- Remove debug messages from production code
+- Expand Low Inventory Alert JSON payload to include:
+  - Location details
+  - Vendor information
+  - Timestamp and User ID
+  - Unit of measure
+  - Item category
+- Add debug mode configuration option
+
+### Version 2.0.0 (Future)
+- Pull integration: BC Custom API for external systems to query inventory
+- Two-way integration: Purchase order creation from alerts
+- Predictive analytics: Forecast when inventory will hit safety stock
+- SMS alerts via Twilio
+- Power BI dashboard integration
+
+---
 
 ## License
 
 Proprietary - Internal Use Only
 
-## Author
+---
 
-Riley - 2026
+## Contributors
+
+**Riley** - Primary Developer
+Email: rileybleeklm@gmail.com
+
+**With assistance from**: Claude Sonnet 4.5 (AI pair programmer)
+
+---
 
 ## Support
 
-For issues or questions, contact the development team.
+- **GitHub Issues**: [Repository URL]
+- **Documentation**: See `/docs` folder
+- **Troubleshooting**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+
+---
+
+## Quick Start
+
+1. **Install extension** in BC environment
+2. **Configure Manufacturing Setup**:
+   - Upper Tolerance: `0.05` (5%)
+   - Enable Inventory Alerts: `☑`
+   - Logic Apps URL: (from Azure)
+3. **Set Safety Stock** on monitored items
+4. **Create Quality Orders** for incoming lots
+5. **Test each feature** using test cases above
+
+For detailed instructions, see [docs/SETUP.md](docs/SETUP.md).
+
+---
+
+🎉 **You now have a complete manufacturing operations suite in Business Central!**
