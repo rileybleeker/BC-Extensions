@@ -16,42 +16,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-02-01
 
 ### Added
-- **Quality Management Enhancement**
-  - Lot quality validation at point of entry in Item Tracking Lines
-  - Event subscriber on Tracking Specification table (OnAfterValidateEvent)
-  - Event subscriber on Reservation Entry table (OnBeforeInsertEvent)
-  - Shared `ValidateLotQualityStatus` procedure
-  - Prevents selection of Pending/Failed lots before posting
-  - Three-layer validation strategy for comprehensive coverage
 
-- **Low Inventory Alert Integration**
-  - Real-time inventory monitoring with threshold crossing detection
-  - Event subscriber on Item Jnl.-Post Line (OnAfterInsertItemLedgEntry)
-  - HTTP POST integration with Azure Logic Apps
-  - Google Sheets integration via Logic Apps connector
-  - Location-aware safety stock support (Stockkeeping Unit priority)
-  - Fire-and-forget HTTP pattern (doesn't block posting on failures)
-  - Comprehensive alert logging system
+#### Feature 1: Production Order Upper Tolerance Management
+- **Purpose**: Prevents over-production by enforcing configurable tolerance limits
+- **Table Extension** (50101): Prod. Order Line Ext
+  - New field: Upper Tolerance (Decimal, auto-calculated)
+  - New field: Sync with DB (Boolean)
+  - Quantity OnAfterValidate trigger to recalculate tolerance
+  - Ending Date-Time modification triggers for date synchronization
+- **Codeunit** (50100): Upper Tolerance Validation
+  - Event subscriber: OnBeforeInsertCapLedgEntry
+  - Event subscriber: OnAfterInitItemLedgEntry
+  - Validates output posting against upper tolerance
+  - Blocks posting with descriptive error if exceeded
+- **Page Extensions** (50102, 50104): Prod. Order Line pages
+  - Display Upper Tolerance field
+  - Display Sync with DB field
+- **Manufacturing Setup Extension**:
+  - New field: Upper Tolerance (Decimal) - percentage for calculation
+- **Formula**: `UpperTolerance = Quantity × MfgSetup."Upper Tolerance"`
+- **Example**: Order Qty 1000 × 5% = 1050 max allowed
+- **Business Value**: Reduces material waste, ensures order compliance
 
-- **Manufacturing Setup Extensions**
-  - Table extension with three new fields:
-    - Enable Inventory Alerts (Boolean)
-    - Logic Apps Endpoint URL (Text[500])
-    - Logic Apps API Key (Text[100], Masked)
-  - Page extension with configuration UI
-  - Conditional field enabling based on master toggle
+#### Feature 2: Reservation Date Synchronization
+- **Purpose**: Eliminates "date conflict with existing reservations" errors
+- **Codeunit** (50101): Reservation Date Sync
+  - `SyncShipmentDateFromProdOrder` - Main synchronization procedure
+  - `FindLinkedSalesLine` - Navigates Reservation Entry structure
+  - `SyncAllProdOrderLines` - Bulk sync for all orders
+- **Integration Points**:
+  - Production Order Line Ending Date-Time OnBeforeValidate
+  - Production Order Line Ending Date-Time OnAfterValidate
+- **Logic Flow**:
+  1. Find Reservation Entries for Production Order Line
+  2. Navigate to linked Sales Line via Reservation Entry
+  3. Update Sales Line Shipment Date to match Prod Order Ending Date
+  4. Reservation Entry dates automatically update
+- **Technical Innovation**: Runs sync twice (before & after validation) to handle BC's date recalculation quirk
+- **Business Value**: Eliminates manual date maintenance, enables agile schedule adjustments
 
-- **Inventory Alert Log**
-  - New table (50101) for tracking alert history
-  - Fields: Entry No., Item Ledger Entry No., Item No., Location Code, Current Inventory, Safety Stock, Alert Timestamp, Alert Status, Error Message
-  - List page (50101) for viewing alert history
-  - Delete All action for log maintenance
+#### Feature 3: Quality Management System
+- **Purpose**: Complete quality testing workflow with multi-layer lot validation
+- **Table** (50100): Quality Order
+  - Fields: Entry No., Item No., Lot No., Test Status (Enum), Item Ledger Entry No.
+  - Tracking fields: Created Date, Tested Date, Tested By
+  - OnValidate trigger: Auto-updates Tested Date/By when status changes
+  - Keys: Primary (Entry No.), Secondary (Item No., Lot No.)
+- **Enum** (50100): Quality Test Status
+  - Values: Pending (0), Passed (1), Failed (2)
+- **Page** (50100): Quality Orders
+  - List view of all quality tests
+  - Actions: Mark as Passed, Mark as Failed
+  - Calls Quality Management codeunit procedures
+- **Codeunit** (50100): Quality Management
+  - `ValidateLotQualityStatus` - Shared validation logic
+  - `MarkQualityOrderAsPassed` - Helper procedure
+  - `MarkQualityOrderAsFailed` - Helper procedure
+- **Multi-Layer Validation**:
+  - Layer 1: Tracking Specification OnAfterValidateEvent (immediate validation)
+  - Layer 2: Reservation Entry OnBeforeInsertEvent (reservation validation)
+  - Layer 3: Item Ledger Entry OnBeforeInsertEvent (final posting validation)
+- **Key Pattern**: xRec parameter check prevents validation on field touch
+- **Business Value**: Prevents shipping defective products, provides audit trail
 
-- **Documentation**
-  - Comprehensive README.md with architecture diagrams
-  - Development notes (NOTES.md) with lessons learned
-  - This CHANGELOG
-  - Testing procedures and troubleshooting guides
+#### Feature 4: Low Inventory Alert Integration
+- **Purpose**: Real-time inventory monitoring with Azure Logic Apps + Google Sheets
+- **Table** (50101): Inventory Alert Log
+  - Audit trail of all alert attempts
+  - Fields: Entry No., Item Ledger Entry No., Item No., Location Code
+  - Alert data: Current Inventory, Safety Stock, Alert Timestamp
+  - Status tracking: Alert Status (Success/Failed), Error Message
+  - Keys: Primary (Entry No.), Secondary (Item No., Location Code, Alert Timestamp)
+- **Page** (50101): Inventory Alert Log
+  - List view of alert history
+  - Read-only display
+  - Delete All action for maintenance
+- **Codeunit** (50103): Low Inventory Alert
+  - Event subscriber: OnAfterInsertItemLedgEntry
+  - `CheckInventoryThresholdCrossing` - Threshold detection algorithm
+  - `GetSafetyStockForLocation` - Location-aware safety stock retrieval
+  - `CalculateInventoryAtPoint` - Point-in-time inventory calculation
+  - `SendInventoryAlert` - HTTP POST to Azure Logic Apps
+  - `BuildAlertPayload` - JSON payload construction
+  - `LogAlertSuccess` / `LogAlertError` - Audit logging
+- **Threshold Detection**: Only alerts when crossing from ABOVE to BELOW safety stock
+- **Formula**: `(InventoryBefore > SafetyStock) AND (InventoryAfter ≤ SafetyStock)`
+- **HTTP Integration**:
+  - Fire-and-forget pattern (doesn't block posting)
+  - Proper Content-Type header management
+  - Optional API key authentication
+- **Manufacturing Setup Extensions**:
+  - Enable Inventory Alerts (Boolean)
+  - Logic Apps Endpoint URL (Text[500])
+  - Logic Apps API Key (Text[100], Masked)
+- **Business Value**: Proactive reordering, prevents stockouts, centralized visibility
+
+### Documentation Added
+- **README.md**: Comprehensive overview of all 4 features with business value
+- **NOTES.md**: Development notes, technical insights, lessons learned
+- **CHANGELOG.md**: This version history
+- **docs/ARCHITECTURE.md**: Detailed technical architecture and design decisions
+- **docs/SETUP.md**: Complete setup guide for BC, Azure, and Google Sheets
+- **docs/TESTING.md**: Test cases and procedures for all features
+- **docs/TROUBLESHOOTING.md**: Common issues and solutions
+- **.gitignore**: Proper exclusions for AL projects
 
 ### Technical Implementation
 - Threshold crossing algorithm: Compares inventory before/after posting

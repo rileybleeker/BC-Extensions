@@ -1,9 +1,190 @@
 # Development Notes - ALProject10
 
 ## Project Overview
-Personal notes and insights from building Business Central extensions for quality management and inventory alerting.
+Personal notes and insights from building Business Central extensions for manufacturing operations, quality management, and inventory alerting.
 
 ## Development Journey
+
+### Phase 0: Foundation - Upper Tolerance & Date Synchronization
+**Goal**: Prevent over-production and eliminate reservation date conflicts
+
+These were the foundational features built before the Quality Management and Low Inventory Alert systems.
+
+#### Part A: Production Order Upper Tolerance Management
+
+**Business Problem**: Production orders sometimes result in over-production, wasting materials and exceeding customer orders.
+
+**Solution Design**:
+1. Add configurable tolerance percentage in Manufacturing Setup
+2. Auto-calculate upper tolerance on production order lines
+3. Validate output posting against upper tolerance
+4. Block posting if it would exceed the limit
+
+**Implementation Details**:
+
+**Table Extension** - Production Order Line (Tab-Ext50100.ProdOrderLine.al):
+```al
+field(50101; "Upper Tolerance"; Decimal)
+{
+    Caption = 'Upper Tolerance';
+    Editable = false;
+}
+
+modify(Quantity)
+{
+    trigger OnAfterValidate()
+    begin
+        CalculateUpperTolerance();
+    end;
+}
+
+local procedure CalculateUpperTolerance()
+begin
+    if MfgSetup.Get() then
+        Rec."Upper Tolerance" := Rec.Quantity * MfgSetup."Upper Tolerance";
+end;
+```
+
+**Key Design Decision**: Make Upper Tolerance read-only and auto-calculated. This ensures consistency and prevents manual errors.
+
+**Validation Logic** - Upper Tolerance Validation Codeunit (Codeunit 50100):
+- Two event subscribers for redundancy:
+  1. `OnBeforeInsertCapLedgEntry` - Validates capacity ledger entry
+  2. `OnAfterInitItemLedgEntry` - Validates item ledger entry
+- Both check: `NewFinishedQty > UpperTolerance`
+- Block posting with descriptive error message
+
+**Example**:
+- Order Quantity: 1000 units
+- Manufacturing Setup Upper Tolerance: 0.05 (5%)
+- Calculated Upper Tolerance: 1050 units
+- If user tries to post output that would bring Finished Qty to 1051 → Error
+
+**Technical Insight**: We validate at TWO different events because Business Central's posting routine can take different paths depending on how output is posted (Output Journal vs. Production Journal). This ensures comprehensive coverage.
+
+**Lesson Learned**: Always include the Production Order No. and Line No. in error messages. Users need context to understand which order is affected.
+
+---
+
+#### Part B: Reservation Date Synchronization
+
+**Business Problem**: Users frequently encountered this error when adjusting production schedules:
+> "This change leads to a date conflict with existing reservations..."
+
+**Root Cause Analysis**:
+When a Production Order Line is linked to a Sales Line via Reservation Entry:
+1. Sales Line has Shipment Date = Jan 1
+2. Prod Order Line has Ending Date-Time = Jan 1
+3. Reservation Entry stores both dates
+4. User changes Prod Order Ending Date to Jan 5
+5. BC validates and finds date mismatch → **Error**
+
+The problem: BC doesn't automatically update the Sales Line Shipment Date to match.
+
+**Solution Strategy**:
+Before BC validates the date change, automatically update the linked Sales Line's Shipment Date to match. This keeps everything in sync and prevents the error.
+
+**Implementation** - Reservation Date Sync Codeunit (Codeunit 50101):
+
+**Core Logic Flow**:
+```
+1. Find Reservation Entries for Production Order Line
+2. For each Reservation Entry:
+   a. Find the linked Sales Line
+   b. Update Sales Line Shipment Date = Prod Order Ending Date
+   c. BC automatically updates Reservation Entry dates
+3. Now when user's date change validates, everything matches
+```
+
+**Key Procedure** - `SyncShipmentDateFromProdOrder`:
+```al
+// Find reservation entries for the production order line
+ReservationEntry.SetRange("Source Type", Database::"Prod. Order Line");
+ReservationEntry.SetRange("Source ID", ProdOrderLine."Prod. Order No.");
+
+if ReservationEntry.FindSet() then
+    repeat
+        // Find the linked sales line
+        if FindLinkedSalesLine(ReservationEntry, SalesLine) then begin
+            // Update the Shipment Date
+            if SalesLine."Shipment Date" <> DT2Date(ProdOrderLine."Ending Date-Time") then begin
+                SalesLine.Validate("Shipment Date", DT2Date(ProdOrderLine."Ending Date-Time"));
+                SalesLine.Modify(true);
+            end;
+        end;
+    until ReservationEntry.Next() = 0;
+```
+
+**Technical Challenge**: Reservation Entries have complex linking structure:
+- One reservation entry for production order (Source Type = Prod. Order Line)
+- One reservation entry for sales order (Source Type = Sales Line)
+- They're linked by Entry No. and opposite Positive flags
+
+**Finding the Linked Sales Line**:
+```al
+// Find the corresponding reservation entry with opposite Positive flag
+ToReservEntry.SetRange("Entry No.", FromReservEntry."Entry No.");
+ToReservEntry.SetRange("Positive", not FromReservEntry."Positive");
+ToReservEntry.SetRange("Source Type", Database::"Sales Line");
+
+if ToReservEntry.FindFirst() then begin
+    // Now get the actual Sales Line record
+    SalesLine.SetRange("Document Type", Order);
+    SalesLine.SetRange("Document No.", ToReservEntry."Source ID");
+    SalesLine.SetRange("Line No.", ToReservEntry."Source Ref. No.");
+    exit(SalesLine.FindFirst());
+end;
+```
+
+**Event Subscriber Integration** - Production Order Line Extension:
+
+**Critical Discovery**: We need to run the sync **twice**:
+
+1. **OnBeforeValidate** - Before BC validates the date change
+   - Prevents the date conflict error
+
+2. **OnAfterValidate** - After BC's validation completes
+   - BC's validation mysteriously changes the date again (to one day earlier!)
+   - We need to sync again to fix this
+
+```al
+modify("Ending Date-Time")
+{
+    trigger OnBeforeValidate()
+    var
+        ReservDateSync: Codeunit "Reservation Date Sync";
+    begin
+        ReservDateSync.SyncShipmentDateFromProdOrder(Rec);
+    end;
+
+    trigger OnAfterValidate()
+    var
+        ReservDateSync: Codeunit "Reservation Date Sync";
+    begin
+        ReservDateSync.SyncShipmentDateFromProdOrder(Rec);
+    end;
+}
+```
+
+**Why This Works**:
+- Before validation: We sync dates, so BC's validation finds no conflict
+- After validation: We sync again to handle BC's date adjustment quirk
+
+**Lesson Learned**: Business Central's date/time handling in production orders has subtle behaviors. When users select a date in the UI, BC sometimes adjusts it during validation (related to working days, location calendar, etc.). Always test both before and after validation triggers.
+
+**Business Impact**:
+- Users can now freely adjust production schedules
+- No more frustrating date conflict errors
+- Sales and production dates stay synchronized automatically
+- Eliminates need for manual reservation deletion and recreation
+
+**Additional Feature** - Bulk Sync Procedure:
+```al
+procedure SyncAllProdOrderLines()
+```
+This allows administrators to sync all production orders at once (useful after implementation or data migration).
+
+---
 
 ### Phase 1: Quality Management Enhancement
 **Goal**: Prevent selection of non-passed lots before posting
