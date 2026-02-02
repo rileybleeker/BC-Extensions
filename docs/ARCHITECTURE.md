@@ -2,13 +2,17 @@
 
 ## System Overview
 
-ALProject10 consists of two major subsystems:
-1. **Quality Management** - Lot validation system
-2. **Low Inventory Alert** - Real-time inventory monitoring and alerting
+ALProject10 consists of four integrated subsystems:
+1. **Production Order Upper Tolerance Management** - Prevents over-production
+2. **Reservation Date Synchronization** - Eliminates reservation date conflicts
+3. **Quality Management** - Lot validation and testing workflow
+4. **Low Inventory Alert** - Real-time inventory monitoring and alerting
+
+These systems work together to provide comprehensive manufacturing operations management, quality control, and inventory visibility in Business Central.
 
 ---
 
-## Architecture Diagram
+## Complete System Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
