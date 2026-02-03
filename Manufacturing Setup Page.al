@@ -31,6 +31,21 @@ pageextension 50103 "Manufacturing Setup Ext" extends "Manufacturing Setup"
                     Enabled = Rec."Enable Inventory Alerts";
                 }
             }
+            group("CSV Sales Order Import")
+            {
+                Caption = 'CSV Sales Order Import Settings';
+
+                field("CSV Import Customer No."; Rec."CSV Import Customer No.")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies the default customer for CSV sales order imports.';
+                }
+                field("CSV Item Template Code"; Rec."CSV Item Template Code")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Optional: Item template for auto-created items. If blank, creates basic items with No. and Description only.';
+                }
+            }
         }
     }
 }

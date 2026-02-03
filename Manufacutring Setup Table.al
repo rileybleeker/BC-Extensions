@@ -25,5 +25,17 @@ tableextension 50102 "Manufacturing Setup Ext" extends "Manufacturing Setup"
             DataClassification = EndUserIdentifiableInformation;
             ExtendedDatatype = Masked;
         }
+        field(50106; "CSV Import Customer No."; Code[20])
+        {
+            Caption = 'CSV Import Customer No.';
+            TableRelation = Customer;
+            DataClassification = ToBeClassified;
+        }
+        field(50107; "CSV Item Template Code"; Code[20])
+        {
+            Caption = 'CSV Item Template Code';
+            TableRelation = "Config. Template Header".Code where("Table ID" = const(27));
+            DataClassification = ToBeClassified;
+        }
     }
 }
