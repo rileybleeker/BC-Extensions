@@ -2,13 +2,14 @@
 
 ## System Overview
 
-ALProject10 consists of four integrated subsystems:
+ALProject10 consists of five integrated subsystems:
 1. **Production Order Upper Tolerance Management** - Prevents over-production
 2. **Reservation Date Synchronization** - Eliminates reservation date conflicts
 3. **Quality Management** - Lot validation and testing workflow
-4. **Low Inventory Alert** - Real-time inventory monitoring and alerting
+4. **CSV Sales Order Import** - Bulk order creation with automatic Item creation
+5. **Low Inventory Alert** - Real-time inventory monitoring and alerting
 
-These systems work together to provide comprehensive manufacturing operations management, quality control, and inventory visibility in Business Central.
+These systems work together to provide comprehensive manufacturing operations management, quality control, bulk order processing, and inventory visibility in Business Central.
 
 ---
 
@@ -152,6 +153,337 @@ end;
 2. **xRec parameter check** prevents validation on field touch
 3. **Only validate negative quantities** (outbound movements)
 4. **Shared validation procedure** ensures consistency
+
+---
+
+## CSV Sales Order Import Architecture
+
+### Component Overview
+
+```
+User Action              Processing Flow                 Result
+===========             ================                ======
+
+User clicks      ┌────────────────────────────┐
+"Select CSV  ───►│   UploadIntoStream()       │
+File and         │   (File dialog)            │
+Import"          └──────────┬─────────────────┘
+                            │
+                            ▼
+                 ┌────────────────────────────┐
+                 │   ParseCSV()               │
+                 │   - InStream.ReadText      │
+                 │   - Line-by-line parsing   │    ┌──────────────────┐
+                 │   - Skip header row        │───►│ CSV Import Buffer│
+                 │   - ParseCSVLine() helper  │    │ (Temporary Table)│
+                 └──────────┬─────────────────┘    └──────────────────┘
+                            │                                │
+                            ▼                                │
+                 ┌────────────────────────────┐             │
+                 │   ValidateData()           │◄────────────┘
+                 │   - Color not empty        │
+                 │   - Size not empty         │
+                 │   - Quantity > 0           │
+                 │   - Item No. <= 20 chars   │
+                 └──────────┬─────────────────┘
+                            │
+                      Valid?│ ──No──► Error (no changes made)
+                            │
+                         Yes│
+                            ▼
+                 ┌────────────────────────────┐
+                 │   CreateSalesOrder()       │
+                 │   - Create Sales Header    │
+                 │   - Loop through buffer    │
+                 │   - Call CreateSalesLine() │
+                 └──────────┬─────────────────┘
+                            │
+                            ▼
+       ┌───────────────────────────────────────────┐
+       │            CreateSalesLine()              │
+       │                                           │
+       │  ┌─────────────────────────────────────┐ │
+       │  │ 1. Calculate ItemNo = Color + Size  │ │
+       │  └─────────────────────────────────────┘ │
+       │                   │                       │
+       │           Exists? ▼ ──No──────────────┐  │
+       │                   │                    │  │
+       │                  Yes                   │  │
+       │                   │                    │  │
+       │                   │      ┌─────────────▼──┴──────────┐
+       │                   │      │ CreateBasicItem()          │
+       │                   │      │ - Item.Init()              │
+       │                   │      │ - Set No., Description     │
+       │                   │      │ - Item.Insert(true)        │
+       │                   │      │ - Commit()  ◄─ Critical!   │
+       │                   │      │ - Item.Get()  (re-get)     │
+       │                   │      │ - Apply Item Template      │
+       │                   │      │ - Item.Modify(true)        │
+       │                   │      └────────────────────────────┘
+       │                   │                    │
+       │                   └────────────────────┘
+       │                           │
+       │  ┌─────────────────────────────────────┐ │
+       │  │ 2. Item.Get(ItemNo)                 │ │
+       │  │ 3. Create Sales Line                │ │
+       │  │ 4. Validate Type = Item             │ │
+       │  │ 5. Validate "No." = ItemNo          │ │
+       │  │ 6. Validate UOM = Base UOM          │ │
+       │  │ 7. Validate Quantity                │ │
+       │  └─────────────────────────────────────┘ │
+       └───────────────────────────────────────────┘
+                            │
+                            ▼
+                 ┌────────────────────────────┐
+                 │   Commit()                 │
+                 │   Return Order No.         │
+                 └──────────┬─────────────────┘
+                            │
+                            ▼
+                 ┌────────────────────────────┐
+                 │   Confirm Dialog           │
+                 │   "Open Sales Order?"      │
+                 └──────────┬─────────────────┘
+                            │
+                      Yes?  ▼ ──No──► Done
+                            │
+                         Yes│
+                            ▼
+                 ┌────────────────────────────┐
+                 │   OpenSalesOrder()         │    ┌──────────────┐
+                 │   Page.Run(Sales Order)    │───►│ Sales Order  │
+                 └────────────────────────────┘    │ Page Opened  │
+                                                   └──────────────┘
+```
+
+### CSV Parsing Algorithm
+
+**Manual InStream Approach** (XMLport abandoned due to BOM/line ending issues):
+
+```al
+while not InStr.EOS() do begin
+    InStr.ReadText(Line);
+    LineNo += 1;
+
+    // Skip header row (Line 1)
+    if LineNo = 1 then continue;
+
+    // Skip empty lines
+    if Line = '' then continue;
+
+    // Parse: Color,Size,Quantity
+    if ParseCSVLine(Line, Color, Size, QuantityText) then begin
+        Buffer.Init();
+        Buffer."Line No." := LineNo - 1;
+        Buffer.Color := Color;
+        Buffer.Size := Size;
+        Evaluate(Buffer.Quantity, QuantityText);
+        Buffer."Item No." := Color + Size;  // e.g., "REDM"
+        Buffer.Insert();
+    end;
+end;
+```
+
+**ParseCSVLine Implementation**:
+```al
+// Find first comma
+CommaPos1 := StrPos(Line, ',');
+
+// Find second comma (in substring after first comma)
+CommaPos2 := StrPos(CopyStr(Line, CommaPos1 + 1), ',');
+CommaPos2 += CommaPos1;  // Adjust to full line position
+
+// Extract fields
+Color := CopyStr(Line, 1, CommaPos1 - 1);
+Size := CopyStr(Line, CommaPos1 + 1, CommaPos2 - CommaPos1 - 1);
+Quantity := CopyStr(Line, CommaPos2 + 1);
+```
+
+### Item Creation with Template
+
+**Critical Transaction Pattern**:
+```al
+// 1. Create minimal Item
+Item.Init();
+Item.Validate("No.", ItemNo);
+Item.Validate(Description, Color + ' ' + Size);
+Item.Insert(true);
+
+// 2. Commit BEFORE template application
+//    Why? Template creates related records (Item Unit of Measure)
+//    that require the Item to exist in database
+Commit();
+
+// 3. Re-get Item after commit
+Item.Get(ItemNo);
+
+// 4. Apply template via RecordRef
+ItemRecRef.GetTable(Item);
+ConfigTemplateMgt.UpdateRecord(ConfigTemplateHeader, ItemRecRef);
+ItemRecRef.SetTable(Item);
+
+// 5. Save template changes
+//    Why? UpdateRecord modifies RecordRef but doesn't save
+Item.Modify(true);
+```
+
+**Template Sets**:
+- Gen. Prod. Posting Group (required for Sales Lines)
+- Base Unit of Measure (required for inventory)
+- Inventory Posting Group
+- VAT Prod. Posting Group
+- Item Category Code
+- Costing Method
+- Other configured fields
+
+### Sales Line Validation Sequence
+
+**Order of Validation Matters**:
+```al
+SalesLine.Init();
+SalesLine."Document Type" := SalesHeader."Document Type";
+SalesLine."Document No." := SalesHeader."No.";
+SalesLine."Line No." := GetNextLineNo(SalesHeader);
+SalesLine.Insert(true);
+
+// Step 1: Set Type
+SalesLine.Validate(Type, SalesLine.Type::Item);
+
+// Step 2: Set Item No.
+//         Triggers OnValidate to populate Description, initial UOM
+SalesLine.Validate("No.", ItemNo);
+
+// Step 3: EXPLICIT Unit of Measure validation
+//         Why? Ensures UOM properly set even if OnValidate didn't
+Item.Get(ItemNo);
+SalesLine.Validate("Unit of Measure Code", Item."Base Unit of Measure");
+
+// Step 4: Set Quantity
+//         Triggers price calculation, amount calculation
+SalesLine.Validate(Quantity, BufferRec.Quantity);
+
+SalesLine.Modify(true);
+```
+
+### Validation Rules
+
+**Pre-Import Validation**:
+1. Color field not empty
+2. Size field not empty
+3. Quantity > 0
+4. Item No. (Color + Size) ≤ 20 characters
+
+**Manufacturing Setup Validation**:
+1. CSV Import Customer No. configured
+2. Customer exists in system
+3. CSV Item Template Code configured
+4. Item Template exists in system
+
+**All-or-Nothing Pattern**:
+- All rows validated before ANY database changes
+- Single validation error → entire import rejected
+- Error messages include line numbers for easy correction
+
+### Configuration Dependencies
+
+```
+Manufacturing Setup
+     │
+     ├─► CSV Import Customer No. ──► Must exist in Customer table
+     │
+     └─► CSV Item Template Code ──► Must exist in Config. Template Header
+              │                     (Table ID = 27 for Item table)
+              │
+              └─► Template defines:
+                   - Gen. Prod. Posting Group (required)
+                   - Base Unit of Measure (required)
+                   - Other default field values
+```
+
+### Data Flow
+
+```
+CSV File                 Buffer Table            Sales Order
+========                 ============            ===========
+
+Color,Size,Quantity
+RED,M,10          ──►    Line No.: 1        ──►  Sales Line 1
+                         Color: RED               Item No.: REDM
+                         Size: M                  Description: RED M
+                         Quantity: 10             Quantity: 10
+                         Item No.: REDM           UOM: PCS
+
+BLUE,L,5          ──►    Line No.: 2        ──►  Sales Line 2
+                         Color: BLUE              Item No.: BLUEL
+                         Size: L                  Description: BLUE L
+                         Quantity: 5              Quantity: 5
+                         Item No.: BLUEL          UOM: PCS
+```
+
+### Error Handling Patterns
+
+**File Format Errors**:
+```al
+if not ParseCSV(InStr, CSVBuffer) then
+    Error('Failed to parse CSV file. Please check the file format.');
+```
+
+**No Data Errors**:
+```al
+if CSVBuffer.Count = 0 then
+    Error('No data rows found in CSV file. Please ensure the file contains data after the header row.');
+```
+
+**Validation Errors**:
+```al
+ValidationError := ValidateData(CSVBuffer);  // Returns concatenated errors
+if ValidationError <> '' then
+    Error('CSV validation failed:%1', ValidationError);
+```
+Example error message:
+```
+CSV validation failed:
+\Line 2: Color is empty.
+\Line 3: Quantity must be greater than 0.
+\Line 5: Item No. (VERYLONGCOLORNAME123XL) exceeds 20 characters.
+```
+
+**Configuration Errors**:
+```al
+if MfgSetup."CSV Import Customer No." = '' then
+    Error('CSV Import Customer No. is not configured in Manufacturing Setup. Please configure it before importing.');
+
+if MfgSetup."CSV Item Template Code" = '' then
+    Error('CSV Item Template Code must be configured in Manufacturing Setup to create new items. Please configure an Item Template first.');
+```
+
+### Key Design Decisions
+
+1. **Manual parsing over XMLport**
+   - Rationale: XMLport struggled with UTF-8 BOM and line ending variations
+   - Trade-off: More code but more reliable across CSV file sources
+
+2. **All-or-nothing validation**
+   - Rationale: Prevents partial imports that require cleanup
+   - Trade-off: Large files fail entirely if one row is bad
+
+3. **Item No. = Color + Size concatenation**
+   - Rationale: Simple, predictable, human-readable
+   - Limitation: Combined length limited to 20 characters
+   - Alternative considered: Hash-based IDs (rejected for readability)
+
+4. **Commit before template application**
+   - Rationale: Item Template creates Item Unit of Measure records that require parent Item to exist
+   - Technical debt: Two commits per import (one per Item, one for Sales Order)
+   - Acceptable: Small imports typically < 100 items
+
+5. **Explicit UOM validation**
+   - Rationale: Ensures proper Unit of Measure even if Item validation quirks occur
+   - Belt-and-suspenders: Validates even when OnValidate should handle it
+
+6. **Temporary Buffer table**
+   - Rationale: Decouples parsing from business logic, enables validation before commits
+   - Memory: Acceptable for typical order sizes (< 1000 lines)
 
 ---
 

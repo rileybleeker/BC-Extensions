@@ -75,7 +75,37 @@ Complete quality testing workflow for lot-tracked inventory with validation to p
 
 ---
 
-### 4. Low Inventory Alert Integration
+### 4. CSV Sales Order Import
+Streamlined import of CSV files to create Sales Orders with automatic Item creation.
+
+**Files:**
+- `CSV Import Buffer Table.al` - Temporary staging table
+- `CSV Sales Order Import Codeunit.al` - Import logic and validation
+- `CSV Sales Order Import Page.al` - User interface
+- `CSV Sales Order Import XMLport.al` - CSV parsing (legacy, not used)
+- `Manufacutring Setup Table.al` - Configuration fields
+- `Manufacturing Setup Page.al` - Setup UI
+
+**Functionality:**
+- Upload CSV files with Color, Size, Quantity columns (with headers)
+- Manual CSV parsing using InStream for reliable line-by-line processing
+- All-or-nothing validation before creating any records
+- Automatic Item creation using configured Item Template
+- Item No. = Color + Size (e.g., "REDM" for Red + M)
+- Sales Order creation with configured default customer
+- Proper Unit of Measure validation from Item's Base Unit of Measure
+- Option to open created Sales Order immediately after import
+
+**Business Value:**
+- Eliminates manual data entry for bulk orders
+- Reduces errors from manual order creation
+- Ensures consistent Item creation using templates
+- Speeds up order processing workflow
+- Provides immediate visibility into created orders
+
+---
+
+### 5. Low Inventory Alert Integration
 Real-time inventory monitoring with threshold crossing detection, integrated with Azure Logic Apps and Google Sheets.
 
 **Files:**
@@ -129,6 +159,10 @@ Navigate to **Manufacturing Setup** in Business Central:
 - **Purpose**: Percentage to calculate acceptable over-production
 - **Example**: Set to 0.05 for 5% over-production allowance
 
+#### CSV Sales Order Import
+- **CSV Import Customer No.**: Default customer for all imported orders (required)
+- **CSV Item Template Code**: Item Template to apply when creating new items (required)
+
 #### Low Inventory Alert Integration
 - **Enable Inventory Alerts**: Toggle to enable/disable real-time alerts
 - **Logic Apps Endpoint URL**: Azure Logic Apps HTTP trigger URL (500 chars)
@@ -179,12 +213,14 @@ For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md).
 | **Tables** ||||
 | Table | 50100 | Quality Order | Quality test records |
 | Table | 50101 | Inventory Alert Log | Alert history tracking |
+| Table | 50102 | CSV Import Buffer | Temporary CSV staging |
 | **Table Extensions** ||||
 | Table Extension | 50101 | Prod. Order Line Ext | Upper Tolerance, Sync with DB, date sync |
 | Table Extension | 50102 | Manufacturing Setup Ext | Upper Tolerance %, Alert config |
 | **Pages** ||||
 | Page | 50100 | Quality Orders | Quality testing UI |
 | Page | 50101 | Inventory Alert Log | Alert history view |
+| Page | 50102 | CSV Sales Order Import | CSV import interface |
 | **Page Extensions** ||||
 | Page Extension | 50102 | Prod. Order Line Sub Ext | Shows Upper Tolerance field |
 | Page Extension | 50103 | Manufacturing Setup Ext | Alert configuration UI |
@@ -192,8 +228,11 @@ For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md).
 | **Codeunits** ||||
 | Codeunit | 50100 | Upper Tolerance Validation | Validates output posting |
 | Codeunit | 50101 | Reservation Date Sync | Syncs prod/sales dates |
-| Codeunit | 50100 | Quality Management | Lot validation logic |
+| Codeunit | 50102 | Quality Management | Lot validation logic |
 | Codeunit | 50103 | Low Inventory Alert | Inventory monitoring & alerting |
+| Codeunit | 50104 | CSV Sales Order Import | CSV parsing & order creation |
+| **XMLports** ||||
+| XMLport | 50100 | CSV Sales Order Import | Legacy CSV parser (not used) |
 
 ---
 
@@ -246,7 +285,19 @@ Basic smoke tests for each feature:
 4. Mark Quality Order as Passed
 5. Now LOT-001 should be selectable
 
-### Test 4: Low Inventory Alert
+### Test 4: CSV Sales Order Import
+1. Configure Manufacturing Setup → CSV Import Customer No. = 10000
+2. Configure Manufacturing Setup → CSV Item Template Code = ITEM-TEMPLATE
+3. Create CSV file in Excel:
+   ```
+   Color,Size,Quantity
+   Red,M,10
+   Blue,L,5
+   ```
+4. Open CSV Sales Order Import page → Select CSV File and Import
+5. Expected: Sales Order created with 2 lines, Items REDM and BLUEL created
+
+### Test 5: Low Inventory Alert
 1. Item with Safety Stock = 100, Current Inventory = 105
 2. Post negative adjustment of -10 (105 → 95)
 3. Expected: Alert in Google Sheets, entry in Inventory Alert Log
@@ -268,8 +319,15 @@ For comprehensive test cases, see [docs/TESTING.md](docs/TESTING.md).
 
 ## Version History
 
+### Version 1.1.0 (2026-02-02)
+- Added CSV Sales Order Import feature
+- Automatic Item creation from CSV with Item Templates
+- Manual CSV parsing for reliability
+- All-or-nothing validation
+- Option to open created order immediately
+
 ### Version 1.0.0 (2026-02-01)
-- Initial release with all four major features
+- Initial release with four major features
 - Production Order Upper Tolerance Management
 - Reservation Date Synchronization
 - Quality Management System with multi-layer validation
@@ -292,9 +350,10 @@ For comprehensive test cases, see [docs/TESTING.md](docs/TESTING.md).
 
 ### Post-Installation Configuration
 1. Manufacturing Setup → Set Upper Tolerance percentage
-2. Manufacturing Setup → Configure Low Inventory Alert integration
-3. Set Safety Stock on Items or Stockkeeping Units
-4. Create Quality Orders for incoming inventory
+2. Manufacturing Setup → Configure CSV Import Customer No. and Item Template
+3. Manufacturing Setup → Configure Low Inventory Alert integration
+4. Set Safety Stock on Items or Stockkeeping Units
+5. Create Quality Orders for incoming inventory
 
 ---
 
@@ -324,8 +383,10 @@ For comprehensive test cases, see [docs/TESTING.md](docs/TESTING.md).
 
 ## Known Limitations
 
-- Debug messages currently active in Low Inventory Alert codeunit (for troubleshooting)
-- JSON payload simplified to 3 fields (can be expanded to 13 fields)
+- CSV Import requires proper CRLF line endings (create CSV files in Excel, not Notepad)
+- CSV Import Item No. limited to 20 characters (Color + Size combined)
+- XMLport for CSV parsing exists but not used (manual parsing more reliable)
+- JSON payload simplified to 3 fields in Low Inventory Alert (can be expanded to 13 fields)
 - Sales Line Ext.al is commented out (legacy test code)
 - No retry logic in BC for failed HTTP calls (handled by Azure Logic Apps)
 
@@ -380,6 +441,8 @@ Email: rileybleeklm@gmail.com
 1. **Install extension** in BC environment
 2. **Configure Manufacturing Setup**:
    - Upper Tolerance: `0.05` (5%)
+   - CSV Import Customer No.: `10000` (or your default customer)
+   - CSV Item Template Code: `ITEM-TEMPLATE` (configure template first)
    - Enable Inventory Alerts: `☑`
    - Logic Apps URL: (from Azure)
 3. **Set Safety Stock** on monitored items

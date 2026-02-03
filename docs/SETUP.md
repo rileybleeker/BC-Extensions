@@ -43,10 +43,57 @@ Complete setup instructions for ALProject10 - Quality Management and Low Invento
 5. Select `ALProject10.app`
 6. Click **Deploy** → **Install**
 
-### Step 2: Configure Manufacturing Setup
+### Step 2: Create Item Template for CSV Import
+
+Before configuring Manufacturing Setup, create an Item Template that will be used when importing CSV files.
+
+1. In Business Central, search for **Configuration Templates**
+2. Click **+ New**
+3. Fill in template details:
+   - **Code**: `ITEM-TEMPLATE` (or your preferred code)
+   - **Description**: `Default Item Template for CSV Import`
+   - **Table ID**: `27` (Item table)
+4. Click **Lines** to add template fields
+5. Add required fields:
+
+   | Field Name | Field Value | Notes |
+   |------------|-------------|-------|
+   | Gen. Prod. Posting Group | RETAIL (or your default) | Required for sales |
+   | Base Unit of Measure | PCS (or your default) | Required for inventory |
+   | Inventory Posting Group | FINISHED (or your default) | Required for inventory |
+   | VAT Prod. Posting Group | STANDARD (or your default) | Required for VAT |
+   | Costing Method | FIFO (or your preferred method) | Optional |
+   | Item Category Code | (your default category) | Optional |
+
+6. Click **OK** to save the template
+
+> **Important**: Gen. Prod. Posting Group and Base Unit of Measure are REQUIRED. The import will fail if the template doesn't set these fields.
+
+### Step 3: Configure Manufacturing Setup
 
 1. In Business Central, search for **Manufacturing Setup**
 2. Navigate to the **General** FastTab
+
+#### CSV Sales Order Import Settings:
+
+**CSV Import Customer No.**
+- Type: Code (20 characters)
+- Required: Yes (for CSV import feature)
+- Value: Enter the customer number to use as default for all imported orders
+- Example: `10000` (Adatum Corporation)
+- Validation: Must be a valid customer in the Customer table
+
+**CSV Item Template Code**
+- Type: Code (20 characters)
+- Required: Yes (for CSV import feature)
+- Value: Enter the template code created in Step 2
+- Example: `ITEM-TEMPLATE`
+- Validation: Must be a valid Item template (Table ID = 27)
+
+> **Note**: Both fields are required for CSV import to work. Configure these before attempting your first import.
+
+#### Low Inventory Alert Integration Settings:
+
 3. Scroll to **Low Inventory Alert Integration** group
 
 #### Configuration Fields:
@@ -69,7 +116,7 @@ Complete setup instructions for ALProject10 - Quality Management and Low Invento
 
 > **Note**: Leave URL and API Key empty for now. Complete Azure setup first, then return to fill these values.
 
-### Step 3: Configure Safety Stock
+### Step 4: Configure Safety Stock
 
 Safety stock thresholds determine when alerts are sent.
 
@@ -88,7 +135,7 @@ Safety stock thresholds determine when alerts are sent.
 
 > **Best Practice**: Use location-level safety stock for multi-warehouse scenarios to set different thresholds per location.
 
-### Step 4: Verify Quality Management
+### Step 5: Verify Quality Management
 
 Quality Management is automatically active after extension installation.
 
@@ -483,12 +530,185 @@ After successful setup:
 
 ---
 
+## Part 4: Using CSV Sales Order Import
+
+### Step 1: Prepare CSV File
+
+Create a CSV file with the following format:
+
+**Required Format**:
+```csv
+Color,Size,Quantity
+Red,M,10
+Blue,L,5
+Green,S,3
+```
+
+**Rules**:
+- **Header row required**: First line must be exactly `Color,Size,Quantity`
+- **Three columns**: Color, Size, Quantity (in that order)
+- **No quotes needed**: Unless values contain commas
+- **Decimal separator**: Use period (.) for decimals, e.g., `10.5`
+- **Line endings**: CRLF (Windows-style) - create in Excel, not Notepad
+- **Encoding**: UTF-8 or ANSI (Excel default)
+
+**Excel Method** (Recommended):
+1. Open Excel
+2. Create columns: Color | Size | Quantity
+3. Add header row: Color, Size, Quantity
+4. Add data rows
+5. Save As → CSV (Comma delimited) (*.csv)
+
+**Item No. Generation**:
+- Item No. = Color + Size
+- Example: Color=`Red`, Size=`M` → Item No.=`REDM`
+- **Maximum length**: 20 characters total
+- If Item No. already exists, it will be reused (no new item created)
+
+### Step 2: Import CSV File
+
+1. In Business Central, search for **CSV Sales Order Import**
+2. Read the instructions on the page
+3. Verify Manufacturing Setup configuration:
+   - Click **Manufacturing Setup** button
+   - Verify **CSV Import Customer No.** is set
+   - Verify **CSV Item Template Code** is set
+   - Return to CSV import page
+4. Click **Select CSV File and Import**
+5. Navigate to your CSV file
+6. Click **Open**
+
+**Processing**:
+- System parses CSV file
+- Validates all rows before creating anything
+- Creates new Items if they don't exist (using Item Template)
+- Creates Sales Order with one line per CSV row
+- Shows confirmation dialog
+
+### Step 3: Review Results
+
+**Success Dialog**:
+```
+Sales Order SO-12345 created successfully with 3 line(s).
+
+Do you want to open the Sales Order?
+[Yes] [No]
+```
+
+- Click **Yes** to immediately view the created Sales Order
+- Click **No** to return to the import page
+
+**Verify Sales Order**:
+1. Check Sales Lines match CSV rows
+2. Verify Item No. = Color + Size for each line
+3. Verify Quantities match CSV
+4. Verify Unit of Measure populated correctly
+5. Check Customer matches Manufacturing Setup configuration
+
+**Verify Items Created** (if new):
+1. Search for **Items**
+2. Find items by Item No. (e.g., REDM, BLUEL)
+3. Verify:
+   - Description = "Color Size" (e.g., "Red M")
+   - Gen. Prod. Posting Group set from template
+   - Base Unit of Measure set from template
+   - Other fields from template applied
+
+### Troubleshooting
+
+**Error: "CSV Import Customer No. is not configured"**
+- Solution: Open Manufacturing Setup → Set CSV Import Customer No.
+
+**Error: "CSV Item Template Code must be configured"**
+- Solution: Open Manufacturing Setup → Set CSV Item Template Code
+- Ensure template exists with required fields (Gen. Prod. Posting Group, Base Unit of Measure)
+
+**Error: "Failed to parse CSV file"**
+- Solution: Recreate CSV in Excel (not Notepad)
+- Ensure proper header row: `Color,Size,Quantity`
+- Check for proper commas between fields
+
+**Error: "CSV validation failed: Line X: Quantity must be greater than 0"**
+- Solution: Fix the specific line mentioned in error message
+- Ensure all quantities are positive numbers
+
+**Error: "CSV validation failed: Line X: Item No. (...) exceeds 20 characters"**
+- Solution: Shorten Color and/or Size so combined length ≤ 20 characters
+- Example: "VERYLONGCOLORNAME" + "XL" = 19 chars (OK)
+
+**Error: "Gen. Prod. Posting Group must have a value in Item"**
+- Solution: Verify Item Template includes Gen. Prod. Posting Group field
+- Edit template → Add Gen. Prod. Posting Group → Set default value
+
+**Error: "Base Unit of Measure must have a value in Item"**
+- Solution: Verify Item Template includes Base Unit of Measure field
+- Edit template → Add Base Unit of Measure → Set default value (e.g., PCS)
+
+### CSV Import Best Practices
+
+1. **Test with small file first**: Start with 2-3 lines to verify template configuration
+2. **Keep Item No. short**: Color + Size should be descriptive but under 20 chars
+3. **Standardize naming**: Use consistent abbreviations (e.g., M, L, XL not Medium, Large)
+4. **Validate in Excel**: Check for empty cells, ensure quantities are numbers
+5. **Use Item Template wisely**: Set all required fields to avoid post-import editing
+6. **Backup before bulk import**: Export existing Sales Orders before importing large files
+
+### Example CSV Files
+
+**Simple Order**:
+```csv
+Color,Size,Quantity
+Black,S,25
+Black,M,50
+Black,L,35
+Black,XL,15
+```
+
+**Multi-Color Order**:
+```csv
+Color,Size,Quantity
+Red,M,10
+Blue,M,10
+Green,M,10
+Red,L,5
+Blue,L,5
+Green,L,5
+```
+
+**Decimal Quantities**:
+```csv
+Color,Size,Quantity
+Navy,OS,10.5
+Gray,OS,25.25
+Beige,OS,8.75
+```
+
+---
+
 ## Configuration Checklist
 
 Use this checklist to verify complete setup:
 
+### General Setup
 - [ ] Extension installed in BC
 - [ ] Manufacturing Setup opened
+
+### CSV Sales Order Import
+- [ ] Item Template created (with Gen. Prod. Posting Group and Base Unit of Measure)
+- [ ] CSV Import Customer No. configured in Manufacturing Setup
+- [ ] CSV Item Template Code configured in Manufacturing Setup
+- [ ] Test CSV file created in Excel
+- [ ] Test import performed successfully
+- [ ] Sales Order created with correct lines
+- [ ] New Items created with template fields applied
+
+### Quality Management
+- [ ] Quality Order table accessible
+- [ ] Test Quality Order created with Pending status
+- [ ] Lot validation tested (blocking selection of non-passed lots)
+- [ ] Mark as Passed/Failed actions work
+
+### Low Inventory Alert Integration
 - [ ] At least one item has Safety Stock > 0
 - [ ] Azure Logic App created
 - [ ] HTTP trigger configured with JSON schema
@@ -501,11 +721,16 @@ Use this checklist to verify complete setup:
 - [ ] Test posting performed
 - [ ] Alert appeared in Google Sheets
 - [ ] Alert Log shows Success status
-- [ ] Debug messages removed (production)
+
+### Production Readiness
+- [ ] Upper Tolerance percentage set in Manufacturing Setup
+- [ ] Production Order Upper Tolerance tested
+- [ ] Reservation Date Sync tested
+- [ ] Debug messages removed (if applicable)
 - [ ] Version number updated
 - [ ] Git tag created
 - [ ] User documentation provided
 
 ---
 
-Congratulations! Your Low Inventory Alert system is now fully operational. 🎉
+Congratulations! Your complete manufacturing and quality management system is now fully operational. 🎉

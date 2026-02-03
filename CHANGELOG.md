@@ -8,10 +8,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### To Do
-- Remove debug messages from Low Inventory Alert Codeunit
 - Expand JSON payload to include all 13 fields (Location, Vendor, Timestamp, etc.)
 - Add configuration option for debug mode
 - Create production-ready branch
+
+## [1.1.0] - 2026-02-02
+
+### Added
+
+#### Feature 5: CSV Sales Order Import
+- **Purpose**: Streamlined bulk order creation from CSV files with automatic Item creation
+- **Table** (50102): CSV Import Buffer
+  - Temporary table for staging CSV data
+  - Fields: Line No., Color (Text[50]), Size (Text[50]), Quantity (Decimal), Item No. (Code[20]), Validation Error (Text[250])
+  - Used for all-or-nothing validation before creating records
+- **Page** (50102): CSV Sales Order Import
+  - Card page with instructions and file upload action
+  - "Select CSV File and Import" action triggers import process
+  - "Manufacturing Setup" action for quick access to configuration
+  - Multi-line instruction label explaining CSV format
+- **Codeunit** (50104): CSV Sales Order Import
+  - `ImportFromFile` - Main entry point, orchestrates the import process
+  - `ParseCSV` - Manual line-by-line CSV parsing using InStream.ReadText
+  - `ParseCSVLine` - Extracts Color, Size, Quantity from individual CSV lines
+  - `ValidateData` - Pre-validates all buffer records before creating anything
+  - `CreateSalesOrder` - Creates Sales Header and loops through buffer
+  - `CreateSalesLine` - Creates individual Sales Lines with proper validation
+  - `CreateBasicItem` - Creates Items with No. and Description, applies Item Template
+  - `OpenSalesOrder` - Opens created Sales Order in UI
+  - All-or-nothing transaction safety with rollback on error
+- **XMLport** (50100): CSV Sales Order Import
+  - VariableText format with FieldSeparator = ','
+  - Legacy parser - not used in production (manual parsing more reliable)
+  - Kept for reference and potential future use
+- **Manufacturing Setup Extensions**:
+  - Field (50106): CSV Import Customer No. (Code[20], TableRelation = Customer)
+  - Field (50107): CSV Item Template Code (Code[20], TableRelation = Config. Template Header)
+  - UI fields added to Manufacturing Setup Page in "CSV Sales Order Import Settings" group
+- **CSV Format**:
+  - Header row required: Color,Size,Quantity
+  - Example: Red,M,10
+  - Must have proper CRLF line endings (create in Excel, not Notepad)
+  - UTF-8 encoding supported
+- **Item Creation Logic**:
+  - Item No. = Color + Size (e.g., "REDM" for Red + M)
+  - Description = "Color Size" (e.g., "Red M")
+  - Applies configured Item Template for required fields (Gen. Prod. Posting Group, Base Unit of Measure, etc.)
+  - Commit after Item.Insert before applying template (ensures Item exists for template's related records)
+  - Item.Modify after template application to save template changes
+- **Sales Order Creation**:
+  - Uses default customer from Manufacturing Setup
+  - Creates Sales Header with Document Type = Order
+  - Creates Sales Lines for each CSV row
+  - Explicit validation of Unit of Measure Code from Item's Base Unit of Measure
+  - Validation sequence: Type → No. → Unit of Measure Code → Quantity
+- **User Experience**:
+  - Confirmation dialog after successful import
+  - Option to immediately open created Sales Order
+  - Clear error messages for validation failures
+  - No partial imports - all-or-nothing validation
+- **Business Value**: Eliminates manual data entry, reduces errors, speeds up bulk order processing
+
+### Changed
+- Updated Manufacturing Setup Page to include CSV import configuration fields
+- Updated Manufacturing Setup Table Extension with two new fields for CSV import
+
+### Fixed
+- CSV parsing now uses manual InStream.ReadText instead of XMLport for reliability
+- Item Unit of Measure validation error fixed with Commit() before template application
+- Unit of Measure Code explicitly validated to ensure proper population on Sales Lines
+- Item Template changes properly saved with Item.Modify(true) after template application
+
+### Technical Implementation
+- **Manual CSV Parsing**: Abandoned XMLport approach due to UTF-8 BOM and line ending issues
+- **Validation Pattern**: All data validated before any database changes
+- **Item Template Application**: Uses ConfigTemplateMgt.UpdateRecord with RecordRef pattern
+- **Transaction Safety**: Commit() strategically placed to handle template's related record creation
+- **Error Handling**: Clear validation messages with line numbers for CSV errors
 
 ## [1.0.0] - 2026-02-01
 
@@ -155,6 +228,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 1.1.0 | 2026-02-02 | Added CSV Sales Order Import feature with automatic Item creation |
 | 1.0.0 | 2026-02-01 | Initial release with Quality Management and Low Inventory Alert features |
 | 0.9.0 | 2026-01-30 | Project foundation and initial objects |
 
