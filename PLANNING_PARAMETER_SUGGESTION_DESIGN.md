@@ -140,8 +140,7 @@ Field No. | Field Name                    | Type        | Description
 30        | Safety Stock Multiplier       | Decimal     | Standard deviations for safety stock (default 1.65)
 31        | Service Level Target          | Decimal     | Target service level % (default 95.0)
 32        | Lead Time Days Default        | Integer     | Default lead time if not on item (default 7)
-40        | Auto Apply Threshold          | Decimal     | Confidence % to auto-apply (default 90.0)
-41        | Require Approval Below        | Decimal     | Confidence % requiring approval (default 75.0)
+40        | Auto Apply Threshold          | Decimal     | Confidence % to auto-approve (default 90.0)
 50        | Batch Size                    | Integer     | Items per batch for processing (default 50)
 51        | Max Concurrent Requests       | Integer     | Parallel API calls (default 5)
 60        | Last Full Run DateTime        | DateTime    | When last batch run completed

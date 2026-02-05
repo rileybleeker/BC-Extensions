@@ -101,8 +101,7 @@ All core calculations have been validated against live Business Central data:
   - Holding Cost Rate
   - Default Order Cost
   - Peak Season Multiplier (1.0-2.0)
-  - Auto-Apply Threshold
-  - Require Approval Below threshold
+  - Auto-Apply Threshold (suggestions at or above this confidence % are auto-approved)
   - Batch Size for processing
 
 ### SKU-Level Support

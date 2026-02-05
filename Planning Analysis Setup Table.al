@@ -66,14 +66,6 @@ table 50113 "Planning Analysis Setup"
             MaxValue = 100;
             DecimalPlaces = 0 : 0;
         }
-        field(41; "Require Approval Below"; Decimal)
-        {
-            Caption = 'Require Approval Below %';
-            InitValue = 75;
-            MinValue = 0;
-            MaxValue = 100;
-            DecimalPlaces = 0 : 0;
-        }
         field(50; "Batch Size"; Integer)
         {
             Caption = 'Batch Processing Size';

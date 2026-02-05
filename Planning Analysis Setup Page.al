@@ -75,12 +75,7 @@ page 50110 "Planning Analysis Setup"
                 field("Auto Apply Threshold"; Rec."Auto Apply Threshold")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Suggestions with confidence scores above this threshold will be auto-approved.';
-                }
-                field("Require Approval Below"; Rec."Require Approval Below")
-                {
-                    ApplicationArea = All;
-                    ToolTip = 'Suggestions with confidence scores below this threshold require manual review.';
+                    ToolTip = 'Suggestions with confidence scores at or above this threshold will be auto-approved. Below this threshold, suggestions require manual approval.';
                 }
             }
             group(BatchProcessing)
