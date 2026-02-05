@@ -43,8 +43,8 @@ codeunit 50112 "Planning Parameter Calculator"
             Suggestion."Item No." := ItemNo;
 
         Suggestion."Demand Pattern" := DemandPattern;
-        Suggestion."Forecast Accuracy MAE" := MAE;
-        Suggestion."Forecast Accuracy MAPE" := MAPE;
+        Suggestion."Demand Variability" := MAE;
+        Suggestion."Demand CV Pct" := MAPE;
         TempDemandHistory.Reset();
         Suggestion."Data Points Analyzed" := TempDemandHistory.Count(); // Actual days with demand
 

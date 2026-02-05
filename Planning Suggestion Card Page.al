@@ -52,7 +52,7 @@ page 50112 "Planning Suggestion Card"
             }
             group(ConfidenceMetrics)
             {
-                Caption = 'Confidence & Accuracy';
+                Caption = 'Confidence & Demand Analysis';
 
                 field("Confidence Score"; Rec."Confidence Score")
                 {
@@ -61,16 +61,16 @@ page 50112 "Planning Suggestion Card"
                     StyleExpr = ConfidenceStyle;
                     Editable = false;
                 }
-                field("Forecast Accuracy MAE"; Rec."Forecast Accuracy MAE")
+                field("Demand Variability"; Rec."Demand Variability")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Mean Absolute Error (MAE) - Estimated forecast error based on the standard deviation of historical daily demand. Since no actual forecast comparison is available, the standard deviation is used as a proxy for expected forecast error. Lower values indicate more predictable demand patterns.';
+                    ToolTip = 'Demand Variability (Standard Deviation) - Measures how much daily demand fluctuates from the average. Calculated using the calendar-day method which includes zero-demand days. Used in the Safety Stock formula as a buffer for demand uncertainty. Lower values indicate more predictable demand patterns.';
                     Editable = false;
                 }
-                field("Forecast Accuracy MAPE"; Rec."Forecast Accuracy MAPE")
+                field("Demand CV Pct"; Rec."Demand CV Pct")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Mean Absolute Percentage Error (MAPE) - Calculated as (Standard Deviation / Average Daily Demand) × 100, representing the Coefficient of Variation as a percentage. Capped at 100%. Lower percentages indicate more consistent and predictable demand. Used to calculate the Forecast Accuracy component of the Confidence Score.';
+                    ToolTip = 'Demand Coefficient of Variation (CV) % - Calculated as (Standard Deviation / Average Daily Demand) × 100. Measures relative variability as a percentage, allowing comparison across items with different demand levels. Capped at 100%. Lower percentages indicate more consistent demand. Used to calculate the Demand Stability component of the Confidence Score.';
                     Editable = false;
                 }
                 field("Data Points Analyzed"; Rec."Data Points Analyzed")

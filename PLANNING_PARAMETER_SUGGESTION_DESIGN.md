@@ -71,8 +71,8 @@ Field No. | Field Name                  | Type           | Description
 90        | Suggested Lot Accum Period | DateFormula    | ML-suggested value
 91        | Current Lot Accum Period   | DateFormula    | Current value from Item
 100       | Confidence Score           | Decimal        | 0-100 confidence from ML
-101       | Forecast Accuracy MAE      | Decimal        | Mean Absolute Error
-102       | Forecast Accuracy MAPE     | Decimal        | Mean Absolute Percentage Error
+101       | Demand Variability         | Decimal        | Standard Deviation of daily demand
+102       | Demand CV Pct              | Decimal        | Coefficient of Variation %
 110       | Data Points Analyzed       | Integer        | Number of historical records
 111       | Analysis Period Start      | Date           | Start of analysis window
 112       | Analysis Period End        | Date           | End of analysis window

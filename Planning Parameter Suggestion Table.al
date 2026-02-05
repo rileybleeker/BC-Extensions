@@ -165,14 +165,14 @@ table 50110 "Planning Parameter Suggestion"
             MinValue = 0;
             MaxValue = 100;
         }
-        field(101; "Forecast Accuracy MAE"; Decimal)
+        field(101; "Demand Variability"; Decimal)
         {
-            Caption = 'Forecast Accuracy (MAE)';
+            Caption = 'Demand Variability (StdDev)';
             DecimalPlaces = 0 : 2;
         }
-        field(102; "Forecast Accuracy MAPE"; Decimal)
+        field(102; "Demand CV Pct"; Decimal)
         {
-            Caption = 'Forecast Accuracy (MAPE %)';
+            Caption = 'Demand CV %';
             DecimalPlaces = 0 : 2;
         }
         field(110; "Data Points Analyzed"; Integer)
