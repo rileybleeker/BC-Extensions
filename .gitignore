@@ -6,7 +6,7 @@
 *.app
 
 # VS Code settings (optional - some teams commit these)
-.vscode/
+
 .code-workspace
 
 # User-specific files
@@ -42,3 +42,7 @@ Desktop.ini
 *.tmp
 *.bak
 *.swp
+
+.python_packages
+__pycache__
+.venv
