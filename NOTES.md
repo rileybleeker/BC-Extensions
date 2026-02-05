@@ -209,6 +209,120 @@ if (Rec."Lot No." <> '') and (Rec."Lot No." <> xRec."Lot No.") and (Rec."Quantit
 ### Phase 2: Low Inventory Alert Integration
 **Goal**: Real-time alerts to Google Sheets when inventory drops below safety stock
 
+---
+
+### Phase 3: Planning Parameter Suggestions
+**Goal**: Automated demand analysis to suggest optimal planning parameters for Items and SKUs
+
+#### Business Problem
+Manual calculation of planning parameters (Safety Stock, Reorder Point, EOQ, Maximum Inventory) is:
+- Time-consuming and error-prone
+- Often based on gut feel rather than data
+- Inconsistent across items and locations
+- Rarely updated as demand patterns change
+
+#### Solution Design
+Built an automated suggestion system that:
+1. Analyzes historical demand from Item Ledger Entries
+2. Calculates statistics using calendar-day methodology
+3. Applies industry-standard formulas for planning parameters
+4. Supports both Item-level and SKU-level (location-specific) suggestions
+5. Provides approval workflow with confidence scoring
+
+#### Key Technical Decisions
+
+**Calendar-Days vs Demand-Days Statistics**
+
+Critical insight: For intermittent demand items, using only "days with demand" for standard deviation calculations dramatically underestimates variability.
+
+**Wrong approach (demand-days)**:
+```
+Days with demand: [10, 15, 8, 12, 5] over 30 days
+Avg = 10, StdDev = 3.5 (only 5 data points)
+```
+
+**Correct approach (calendar-days)**:
+```
+All 30 days: [10, 0, 0, 15, 0, 0, 0, 8, 0, 0, 12, 0, 0, 0, 5, 0, 0, ...]
+Avg = 1.67/day, StdDev = 4.2 (30 data points, zeros included)
+```
+
+The calendar-days approach produces higher standard deviation → higher safety stock → better service levels for intermittent demand items.
+
+**Implementation**:
+```al
+// Calculate actual calendar days in the analysis period
+CalendarDays := EndDate - StartDate + 1;
+
+// Average uses calendar days (true daily average)
+AvgDailyDemand := TotalDemand / CalendarDays;
+
+// Add squared differences for days WITHOUT demand
+// Zero-demand days: (0 - AvgDailyDemand)² = AvgDailyDemand²
+SumSquaredDiff += (CalendarDays - RecordCount) * AvgDailyDemand * AvgDailyDemand;
+
+StdDevDemand := Power(SumSquaredDiff / (CalendarDays - 1), 0.5);
+```
+
+**Configurable Peak Season Multiplier**
+
+For seasonal items, the Maximum Inventory calculation applies a multiplier:
+```al
+if DemandPattern = "Item Demand Pattern"::Seasonal then begin
+    PeakSeasonMultiplier := Setup."Peak Season Multiplier";
+    if PeakSeasonMultiplier <= 0 then
+        PeakSeasonMultiplier := 1.3; // Fallback default
+    MaxInventory := MaxInventory * PeakSeasonMultiplier;
+end;
+```
+
+Initially hardcoded to 1.3, we made this configurable via Planning Analysis Setup (range 1.0-2.0).
+
+**Lead Time Extraction from DateFormula**
+
+BC stores lead times as DateFormula (e.g., `<1W>`, `<14D>`). We convert to integer days:
+```al
+local procedure GetLeadTimeDays(ItemNo: Code[20]; LocationCode: Code[10]): Integer
+var
+    LeadTimeFormula: DateFormula;
+    RefDate: Date;
+begin
+    // Get from SKU or Item
+    LeadTimeFormula := GetLeadTimeCalculation(ItemNo, LocationCode);
+
+    // Convert to days using CalcDate
+    RefDate := Today();
+    exit(CalcDate(LeadTimeFormula, RefDate) - RefDate);
+end;
+```
+
+**Validated Calculations**
+
+All core calculations were validated against live BC data:
+- VT-001: Average Daily Demand ✓
+- VT-002: Standard Deviation (calendar-day method) ✓
+- VT-003: Safety Stock ✓
+- VT-004: Reorder Point ✓
+- VT-005: Reorder Quantity (EOQ) ✓
+- VT-006: Maximum Inventory ✓
+- VT-007: Lot Accumulation Period ✓
+
+See [PLANNING_PARAMETER_SUGGESTION_DESIGN.md](PLANNING_PARAMETER_SUGGESTION_DESIGN.md) for detailed formulas and validation examples.
+
+#### Lessons Learned
+
+1. **Zero-demand days matter**: Including zeros in standard deviation is crucial for intermittent demand items
+
+2. **DateFormula conversion**: Use `CalcDate` to convert DateFormula to days - handles weeks, months, etc.
+
+3. **SKU-level complexity**: Supporting both Item and SKU levels requires careful fallback logic throughout
+
+4. **Calculation notes are essential**: Building detailed notes with formulas and values provides audit trail and helps users understand suggestions
+
+5. **Confidence scoring**: Users trust suggestions more when they can see why confidence is high or low
+
+---
+
 **Architecture Decision**: Push model (BC → Azure → Google) vs. Pull model (Azure polls BC)
 - Chose **push** because we need real-time alerts on threshold crossing
 - Event-driven is better than polling for this use case

@@ -11,6 +11,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expand JSON payload to include all 13 fields (Location, Vendor, Timestamp, etc.)
 - Add configuration option for debug mode
 - Create production-ready branch
+- Test Reordering Policy mapping (VT-008)
+
+## [1.2.0] - 2026-02-04
+
+### Added
+
+#### Feature 6: Planning Parameter Suggestions
+- **Purpose**: Automated demand analysis and planning parameter optimization for Items and SKUs
+- **Tables**:
+  - Table (50110): Planning Parameter Suggestion - stores calculated suggestions with status tracking
+  - Table (50111): Demand History Staging - temporary table for demand data analysis
+  - Table (50112): Item Planning Extension - extends Item table for planning features
+  - Table (50113): Planning Analysis Setup - configuration for analysis parameters and thresholds
+- **Pages**:
+  - Page (50110): Planning Analysis Setup - configure analysis settings, service levels, costs
+  - Page (50111): Planning Parameter Suggestions - list view with approve/reject/apply actions
+  - Page (50112): Planning Suggestion Card - detailed view with calculation notes
+  - Page (50113): Item Card Planning Extension - planning actions on Item Card
+  - Page (50114): Reject Reason Dialog - capture rejection reasons
+  - Page (50115): Test Data Generator - development/testing utility
+- **Codeunits**:
+  - Codeunit (50110): Planning Suggestion Manager
+    - `GenerateSuggestionForItem` - creates suggestion for single item
+    - `GenerateSuggestionsForAllLocations` - SKU-level suggestions for all locations
+    - `ApproveSuggestion` / `RejectSuggestion` - workflow management
+    - `ApplySuggestion` - applies parameters to Item or SKU
+    - `ExpireOldSuggestions` - maintenance procedure
+  - Codeunit (50111): Planning Parameter Calculator
+    - `CalculateSuggestion` - main calculation orchestrator
+    - `CalculateSafetyStock` - Z-score formula with MAE buffer
+    - `CalculateReorderPoint` - lead time demand + safety stock
+    - `CalculateEOQ` - Economic Order Quantity formula
+    - `CalculateMaximumInventory` - with seasonal adjustment
+    - `CalculateLotAccumPeriod` - based on ordering frequency
+    - `BuildCalculationNotes` - audit trail with formulas
+  - Codeunit (50112): Planning Data Collector
+    - `CollectDemandHistory` - gathers Item Ledger Entry data
+    - `CalculateStatistics` - calendar-day average and standard deviation
+  - Codeunit (50113): Planning SKU Management
+    - `CreateOrUpdateSKU` - automatic SKU creation when applying suggestions
+- **Enumerations**:
+  - Enum (50110): Item Demand Pattern - Stable, Seasonal, Intermittent, New
+  - Enum (50111): Planning Suggestion Status - Pending, Approved, Rejected, Applied, Expired, Failed
+  - Enum (50112): Demand Source Type - Sale, Transfer, Production Consumption, Other
+- **Permission Sets**:
+  - PermissionSet (50110): Planning Suggest Admin - full access
+  - PermissionSet (50111): Planning Suggest View - read-only access
+
+### Validated Calculations (VT-001 through VT-007)
+All core calculations have been validated against live Business Central data:
+
+- **VT-001: Average Daily Demand** ✓
+  - Formula: `TotalDemand / CalendarDays`
+  - Uses actual calendar days, not demand-days, for accurate intermittent demand handling
+
+- **VT-002: Standard Deviation** ✓
+  - Calendar-day method including zero-demand days
+  - Critical for accurate safety stock with intermittent demand
+
+- **VT-003: Safety Stock** ✓
+  - Formula: `(Z × σ × √(L + R)) + (MAE × Z)`
+  - Z-score from service level (95% → 1.65)
+  - Includes forecast error buffer (MAE)
+
+- **VT-004: Reorder Point** ✓
+  - Formula: `(AvgDailyDemand × LeadTime) + SafetyStock`
+  - Lead time from Item/SKU Lead Time Calculation field
+
+- **VT-005: Reorder Quantity (EOQ)** ✓
+  - Formula: `√((2 × D × S) / H)`
+  - Uses Setup.Default Order Cost and Setup.Holding Cost Rate
+
+- **VT-006: Maximum Inventory** ✓
+  - Formula: `ReorderPoint + ReorderQuantity`
+  - Seasonal adjustment: `× PeakSeasonMultiplier` when pattern is Seasonal
+
+- **VT-007: Lot Accumulation Period** ✓
+  - Based on: `365 / OrdersPerYear`
+  - Maps to DateFormula: ≤7d→1W, ≤14d→2W, ≤30d→1M, >30d→2M
+
+### Configuration Options
+- **Planning Analysis Setup** page includes:
+  - Default Analysis Months (3-60)
+  - Minimum Data Points (10-365)
+  - Service Level Target (80-99.9%)
+  - Safety Stock Multiplier (auto-calculated Z-score)
+  - Lead Time Days Default
+  - Holding Cost Rate
+  - Default Order Cost
+  - Peak Season Multiplier (1.0-2.0)
+  - Auto-Apply Threshold
+  - Require Approval Below threshold
+  - Batch Size for processing
+
+### SKU-Level Support
+- Suggestions can target Item or Stockkeeping Unit level
+- Location-specific demand history analysis
+- Automatic SKU creation when applying suggestions
+- SKU values override Item values when both exist
+
+### Business Value
+- Eliminates manual planning parameter calculations
+- Data-driven inventory optimization
+- Supports location-specific inventory policies
+- Audit trail with detailed calculation notes
+- Confidence scoring for approval workflow
 
 ## [1.1.0] - 2026-02-02
 
@@ -228,6 +334,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 1.2.0 | 2026-02-04 | Added Planning Parameter Suggestions with validated calculations |
 | 1.1.0 | 2026-02-02 | Added CSV Sales Order Import feature with automatic Item creation |
 | 1.0.0 | 2026-02-01 | Initial release with Quality Management and Low Inventory Alert features |
 | 0.9.0 | 2026-01-30 | Project foundation and initial objects |

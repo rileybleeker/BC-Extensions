@@ -2,14 +2,15 @@
 
 ## System Overview
 
-ALProject10 consists of five integrated subsystems:
+ALProject10 consists of six integrated subsystems:
 1. **Production Order Upper Tolerance Management** - Prevents over-production
 2. **Reservation Date Synchronization** - Eliminates reservation date conflicts
 3. **Quality Management** - Lot validation and testing workflow
 4. **CSV Sales Order Import** - Bulk order creation with automatic Item creation
 5. **Low Inventory Alert** - Real-time inventory monitoring and alerting
+6. **Planning Parameter Suggestions** - Automated demand analysis and planning optimization
 
-These systems work together to provide comprehensive manufacturing operations management, quality control, bulk order processing, and inventory visibility in Business Central.
+These systems work together to provide comprehensive manufacturing operations management, quality control, bulk order processing, inventory visibility, and data-driven planning optimization in Business Central.
 
 ---
 

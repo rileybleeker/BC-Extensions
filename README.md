@@ -108,6 +108,9 @@ Streamlined import of CSV files to create Sales Orders with automatic Item creat
 ### 5. Low Inventory Alert Integration
 Real-time inventory monitoring with threshold crossing detection, integrated with Azure Logic Apps and Google Sheets.
 
+### 6. Planning Parameter Suggestions
+Automated analysis of demand history to suggest optimal planning parameters (Safety Stock, Reorder Point, EOQ, Maximum Inventory) for Items and Stockkeeping Units.
+
 **Files:**
 - `Low Inventory Alert Codeunit.al` - Main integration logic
 - `Inventory Alert Log Table.al` - Alert audit trail
@@ -146,6 +149,56 @@ Threshold Detection ------HTTP POST------> HTTP Trigger
 - Proactive reordering reduces stockouts
 - Centralized visibility in Google Sheets for team collaboration
 - Prevents disruption to production from material shortages
+
+---
+
+### 6. Planning Parameter Suggestions
+Automated analysis of demand history to suggest optimal planning parameters for Items and Stockkeeping Units.
+
+**Files:**
+- `Planning Parameter Suggestion Table.al` - Suggestion records with calculated parameters
+- `Planning Parameter Suggestions Page.al` - List view of all suggestions
+- `Planning Suggestion Card Page.al` - Detailed suggestion card with actions
+- `Planning Analysis Setup Table.al` - Configuration for analysis parameters
+- `Planning Analysis Setup Page.al` - Setup UI
+- `Planning Parameter Calculator Codeunit.al` - Core calculation algorithms
+- `Planning Data Collector Codeunit.al` - Demand history collection from Item Ledger Entries
+- `Planning Suggestion Manager Codeunit.al` - Workflow management (generate, approve, apply)
+- `Planning SKU Management Codeunit.al` - Stockkeeping Unit creation and updates
+- `Demand History Staging Table.al` - Temporary staging for analysis
+- `Item Demand Pattern Enum.al` - Demand patterns (Stable, Seasonal, Intermittent, New)
+- `Planning Suggestion Status Enum.al` - Workflow statuses (Pending, Approved, Rejected, Applied)
+- `Item Planning Extension Table.al` - Item card extension for suggestions
+- `Item Card Planning Extension Page.al` - Item card planning actions
+
+**Functionality:**
+- Analyzes Item Ledger Entry demand history using calendar-day statistics
+- Calculates Average Daily Demand, Standard Deviation (including zero-demand days)
+- Suggests Safety Stock using Z-score formula for target service level
+- Suggests Reorder Point based on lead time demand plus safety stock
+- Calculates Economic Order Quantity (EOQ) using holding and ordering costs
+- Suggests Maximum Inventory with seasonal adjustment for seasonal patterns
+- Determines Lot Accumulation Period based on ordering frequency
+- Maps demand patterns to appropriate Reordering Policies
+- Supports both Item-level and SKU-level (location-specific) suggestions
+- Approval workflow with confidence scoring (auto-approve high-confidence suggestions)
+- One-click application of approved suggestions to Item or SKU records
+
+**Calculation Formulas (Validated):**
+- **Average Daily Demand**: `TotalDemand / CalendarDays`
+- **Standard Deviation**: Calendar-days method (includes zero-demand days)
+- **Safety Stock**: `(Z × σ × √(L + R)) + (MAE × Z)`
+- **Reorder Point**: `(AvgDailyDemand × LeadTime) + SafetyStock`
+- **EOQ**: `√((2 × AnnualDemand × OrderCost) / HoldingCost)`
+- **Maximum Inventory**: `ReorderPoint + EOQ` (× Peak Season Multiplier if Seasonal)
+- **Lot Accumulation Period**: Based on `365 / OrdersPerYear` mapping to DateFormula
+
+**Business Value:**
+- Eliminates manual planning parameter calculations
+- Ensures consistent, data-driven inventory policies
+- Supports location-specific optimization via SKU-level suggestions
+- Provides audit trail with detailed calculation notes
+- Improves service levels while minimizing inventory investment
 
 ---
 
@@ -233,6 +286,27 @@ For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md).
 | Codeunit | 50104 | CSV Sales Order Import | CSV parsing & order creation |
 | **XMLports** ||||
 | XMLport | 50100 | CSV Sales Order Import | Legacy CSV parser (not used) |
+| **Planning Parameter Suggestions** ||||
+| Table | 50110 | Planning Parameter Suggestion | Suggestion records |
+| Table | 50111 | Demand History Staging | Temporary analysis staging |
+| Table | 50112 | Item Planning Extension | Item card extension |
+| Table | 50113 | Planning Analysis Setup | Configuration settings |
+| Page | 50110 | Planning Analysis Setup | Setup UI |
+| Page | 50111 | Planning Parameter Suggestions | Suggestions list |
+| Page | 50112 | Planning Suggestion Card | Suggestion details |
+| Page | 50113 | Item Card Planning Extension | Item planning actions |
+| Page | 50114 | Reject Reason Dialog | Rejection reason entry |
+| Page | 50115 | Test Data Generator | Development testing |
+| Codeunit | 50110 | Planning Suggestion Manager | Workflow management |
+| Codeunit | 50111 | Planning Parameter Calculator | Calculation algorithms |
+| Codeunit | 50112 | Planning Data Collector | Demand history collection |
+| Codeunit | 50113 | Planning SKU Management | SKU creation/updates |
+| Codeunit | 50114 | Test Data Generator | Development testing |
+| Enum | 50110 | Item Demand Pattern | Stable/Seasonal/Intermittent/New |
+| Enum | 50111 | Planning Suggestion Status | Pending/Approved/Rejected/Applied |
+| Enum | 50112 | Demand Source Type | Sale/Transfer/Production/Other |
+| PermissionSet | 50110 | Planning Suggest Admin | Full access |
+| PermissionSet | 50111 | Planning Suggest View | Read-only access |
 
 ---
 
@@ -302,6 +376,16 @@ Basic smoke tests for each feature:
 2. Post negative adjustment of -10 (105 → 95)
 3. Expected: Alert in Google Sheets, entry in Inventory Alert Log
 
+### Test 6: Planning Parameter Suggestions
+1. Select an Item with sufficient demand history (30+ days of sales)
+2. Open Item Card → Planning tab → Generate Suggestion action
+3. View the suggestion in Planning Parameter Suggestions page
+4. Verify calculated values:
+   - Safety Stock = `(Z × StdDev × √(LeadTime + ReviewPeriod)) + (MAE × Z)`
+   - Reorder Point = `(AvgDailyDemand × LeadTime) + SafetyStock`
+5. Approve and Apply the suggestion
+6. Expected: Item planning parameters updated with suggested values
+
 For comprehensive test cases, see [docs/TESTING.md](docs/TESTING.md).
 
 ---
@@ -314,10 +398,22 @@ For comprehensive test cases, see [docs/TESTING.md](docs/TESTING.md).
 - **[docs/SETUP.md](docs/SETUP.md)** - Complete setup instructions
 - **[docs/TESTING.md](docs/TESTING.md)** - Test cases and procedures
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[PLANNING_PARAMETER_SUGGESTION_DESIGN.md](PLANNING_PARAMETER_SUGGESTION_DESIGN.md)** - Planning suggestions technical design
+- **[SKU_LEVEL_PLANNING_ADDENDUM.md](SKU_LEVEL_PLANNING_ADDENDUM.md)** - SKU-level planning implementation
 
 ---
 
 ## Version History
+
+### Version 1.2.0 (2026-02-04)
+- Added Planning Parameter Suggestions feature
+- Automated demand history analysis from Item Ledger Entries
+- Statistical calculations: Average Daily Demand, Standard Deviation (calendar-day method)
+- Planning parameter suggestions: Safety Stock, Reorder Point, EOQ, Maximum Inventory
+- SKU-level (location-specific) support with automatic SKU creation
+- Approval workflow with confidence scoring
+- Configurable Peak Season Multiplier for seasonal items
+- Comprehensive calculation notes for audit trail
 
 ### Version 1.1.0 (2026-02-02)
 - Added CSV Sales Order Import feature
