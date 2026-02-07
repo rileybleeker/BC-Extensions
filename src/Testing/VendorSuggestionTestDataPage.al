@@ -91,9 +91,6 @@ page 50116 "Vendor Suggestion Test Data"
                     Caption = 'Generate All Test Data';
                     Image = CreateDocument;
                     ToolTip = 'Generate all test vendors, items, item-vendor links, and performance data';
-                    Promoted = true;
-                    PromotedCategory = Process;
-                    PromotedIsBig = true;
 
                     trigger OnAction()
                     var
@@ -172,7 +169,7 @@ page 50116 "Vendor Suggestion Test Data"
                 {
                     ApplicationArea = All;
                     Caption = 'Generate Item Substitutions';
-                    Image = Substitute;
+                    Image = Change;
                     ToolTip = 'Generate item substitution records';
 
                     trigger OnAction()
