@@ -113,17 +113,28 @@ jobs:
           }
 
           Write-Host "Deploying $($appFile.Name) to ${{ env.BC_ENVIRONMENT }}..."
+          Write-Host "Tenant ID: $($creds.tenantId)"
 
-          # Publish to BC Online
-          Publish-BcContainerApp `
-              -bcAuthContext $authContext `
-              -environment "${{ env.BC_ENVIRONMENT }}" `
-              -appFile $appFile.FullName `
-              -syncMode ForceSync `
-              -install `
-              -upgrade
+          try {
+              # Publish to BC Online using Publish-PerTenantExtensionApps for SaaS
+              Publish-PerTenantExtensionApps `
+                  -bcAuthContext $authContext `
+                  -environment "${{ env.BC_ENVIRONMENT }}" `
+                  -appFiles @($appFile.FullName) `
+                  -schemaSyncMode Force
 
-          Write-Host "Deployment complete!"
+              Write-Host "Deployment complete!"
+          }
+          catch {
+              Write-Host "::error::Deployment failed: $_"
+              Write-Host "Error details: $($_.Exception.Message)"
+              if ($_.Exception.Response) {
+                  $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                  $responseBody = $reader.ReadToEnd()
+                  Write-Host "Response body: $responseBody"
+              }
+              throw
+          }
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
