@@ -27,11 +27,19 @@ codeunit 50102 "Quality Management"
     end;
 
     procedure MarkQualityOrderAsFailed(var QualityOrder: Record "Quality Order")
+    var
+        MfgSetup: Record "Manufacturing Setup";
+        VendorNCRMgt: Codeunit "Vendor NCR Management";
     begin
         QualityOrder."Test Status" := QualityOrder."Test Status"::Failed;
         QualityOrder."Tested Date" := Today;
         QualityOrder."Tested By" := UserId;
         QualityOrder.Modify(true);
+
+        // Auto-create Vendor NCR if enabled
+        MfgSetup.Get();
+        if MfgSetup."Auto-Create NCR from Quality" then
+            VendorNCRMgt.CreateNCRFromQualityOrder(QualityOrder);
 
         Message('Quality Order %1 marked as Failed. Lot %2 cannot be sold.', QualityOrder."Entry No.", QualityOrder."Lot No.");
     end;
