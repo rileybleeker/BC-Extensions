@@ -203,8 +203,6 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'Create Historical Entries';
                 ToolTip = 'Create lead time variance entries from historical receipt data.';
                 Image = History;
-                Promoted = true;
-                PromotedCategory = Process;
 
                 trigger OnAction()
                 var
@@ -217,6 +215,45 @@ page 50123 "Lead Time Variance Entries"
                     LeadTimeTracker.CreateAllHistoricalEntries(StartDate, EndDate);
                     CurrPage.Update(false);
                     Message('Historical lead time variance entries created.');
+                end;
+            }
+            action(DeleteSelected)
+            {
+                ApplicationArea = All;
+                Caption = 'Delete Selected';
+                ToolTip = 'Delete the selected lead time variance entries.';
+                Image = Delete;
+
+                trigger OnAction()
+                var
+                    LeadTimeVariance: Record "Lead Time Variance Entry";
+                begin
+                    if not Confirm('Delete selected entries?') then
+                        exit;
+                    CurrPage.SetSelectionFilter(LeadTimeVariance);
+                    LeadTimeVariance.DeleteAll();
+                    CurrPage.Update(false);
+                end;
+            }
+            action(DeleteAllForVendor)
+            {
+                ApplicationArea = All;
+                Caption = 'Delete All for Vendor';
+                ToolTip = 'Delete all lead time variance entries for the current vendor.';
+                Image = Delete;
+
+                trigger OnAction()
+                var
+                    LeadTimeVariance: Record "Lead Time Variance Entry";
+                begin
+                    if Rec."Vendor No." = '' then
+                        exit;
+                    if not Confirm('Delete all entries for vendor %1?', false, Rec."Vendor No.") then
+                        exit;
+                    LeadTimeVariance.SetRange("Vendor No.", Rec."Vendor No.");
+                    LeadTimeVariance.DeleteAll();
+                    CurrPage.Update(false);
+                    Message('Entries deleted for vendor %1.', Rec."Vendor No.");
                 end;
             }
         }
