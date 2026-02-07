@@ -333,6 +333,8 @@ For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md).
 | Page | 50150 | Purchase Suggestion List | Suggestion overview |
 | Page | 50151 | Purchase Suggestion Card | Suggestion details |
 | Page | 50152 | Vendor Comparison | Side-by-side comparison |
+| Page Extension | 50150 | Req Worksheet Vendor Ext | Vendor lookup integration |
+| Page Extension | 50151 | Planning Worksheet Vendor Ext | Vendor lookup integration |
 | Codeunit | 50150 | Purchase Suggestion Manager | Workflow management |
 | Codeunit | 50151 | Vendor Selector | Vendor scoring/ranking |
 | Enum | 50150 | Purchase Suggestion Status | Pending/Approved/Rejected/Converted |
@@ -478,7 +480,8 @@ Smart vendor recommendations based on performance, price, and lead time scoring.
 - `VendorRankingTable.al` - Temporary ranking results
 - `VendorComparisonPage.al` - Side-by-side vendor comparison
 - `PurchaseSuggestionManagerCodeunit.al` - Workflow management
-- `PlanningSuggestionCardPageExt.al` - Integration with planning suggestions
+- `RequisitionWorksheetPageExt.al` - Req. Worksheet with vendor lookup integration
+- `PlanningWorksheetPageExt.al` - Planning Worksheet with vendor lookup integration
 
 **Scoring Weights:**
 | Factor | Weight |
@@ -495,12 +498,14 @@ Smart vendor recommendations based on performance, price, and lead time scoring.
 - Integrates with Planning Parameter Suggestions
 - Supports substitute item suggestions
 - Approval workflow before purchase order creation
+- **Vendor No. Lookup Integration**: Clicking the Vendor No. lookup in Requisition Worksheet or Planning Worksheet shows the Vendor Comparison page with ranked vendors instead of standard vendor list
 
 **Business Value:**
 - Consistent, data-driven vendor selection
 - Reduces purchasing decision time
 - Balances cost vs. quality vs. speed tradeoffs
 - Prevents ad-hoc vendor choices
+- Seamless integration into existing BC workflow
 
 ---
 
@@ -512,6 +517,7 @@ Smart vendor recommendations based on performance, price, and lead time scoring.
 - **[docs/SETUP.md](docs/SETUP.md)** - Complete setup instructions
 - **[docs/TESTING.md](docs/TESTING.md)** - Test cases and procedures
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[docs/Purchase_Suggestions_Vendor_Ranking.md](docs/Purchase_Suggestions_Vendor_Ranking.md)** - Purchase Suggestions detailed specification
 - **[PLANNING_PARAMETER_SUGGESTION_DESIGN.md](PLANNING_PARAMETER_SUGGESTION_DESIGN.md)** - Planning suggestions technical design
 - **[SKU_LEVEL_PLANNING_ADDENDUM.md](SKU_LEVEL_PLANNING_ADDENDUM.md)** - SKU-level planning implementation
 
