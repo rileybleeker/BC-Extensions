@@ -223,6 +223,9 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'Delete Selected';
                 ToolTip = 'Delete the selected lead time variance entries.';
                 Image = Delete;
+                Promoted = true;
+                PromotedCategory = Process;
+                PromotedIsBig = true;
 
                 trigger OnAction()
                 var
@@ -241,6 +244,8 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'Delete All for Vendor';
                 ToolTip = 'Delete all lead time variance entries for the current vendor.';
                 Image = Delete;
+                Promoted = true;
+                PromotedCategory = Process;
 
                 trigger OnAction()
                 var
