@@ -95,7 +95,10 @@ jobs:
         run: |
           Import-Module BcContainerHelper
 
-          $authContext = $env:AUTH_CONTEXT | ConvertFrom-Json
+          # Convert JSON to hashtable (Publish-BcContainerApp requires hashtable, not PSCustomObject)
+          $jsonObj = $env:AUTH_CONTEXT | ConvertFrom-Json
+          $authContext = @{}
+          $jsonObj.PSObject.Properties | ForEach-Object { $authContext[$_.Name] = $_.Value }
 
           # Get the .app file
           $appFile = Get-ChildItem -Path ".output" -Filter "*.app" | Select-Object -First 1
