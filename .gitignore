@@ -5,8 +5,7 @@
 .output/
 *.app
 
-# VS Code settings (optional - some teams commit these)
-
+# VS Code settings - commit these for team consistency
 .code-workspace
 
 # User-specific files
