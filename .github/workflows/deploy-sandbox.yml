@@ -52,27 +52,33 @@ jobs:
           $artifactUrl = Get-BcArtifactUrl -type OnPrem -country us -select Latest
           Write-Host "Using BC artifact: $artifactUrl"
 
-          # Download artifacts
-          Download-Artifacts -artifactUrl $artifactUrl -basePath $env:TEMP -includePlatform
+          # Create compiler folder
+          $compilerFolder = New-BcCompilerFolder -artifactUrl $artifactUrl -cacheFolder (Join-Path $env:TEMP "cache")
+          Write-Host "Compiler folder: $compilerFolder"
 
           # Find alc.exe
-          $alcPath = Get-ChildItem -Path $env:TEMP -Recurse -Filter "alc.exe" | Select-Object -First 1
-
-          if (-not $alcPath) {
-              Write-Host "::error::Could not find alc.exe"
-              exit 1
+          $alcPath = Join-Path $compilerFolder "alc.exe"
+          if (-not (Test-Path $alcPath)) {
+              $alcFile = Get-ChildItem -Path $compilerFolder -Recurse -Filter "alc.exe" | Select-Object -First 1
+              if ($alcFile) {
+                  $alcPath = $alcFile.FullName
+              } else {
+                  Write-Host "::error::Could not find alc.exe"
+                  exit 1
+              }
           }
+
+          Write-Host "Found AL compiler: $alcPath"
 
           # Create output folder
           New-Item -ItemType Directory -Path ".output" -Force | Out-Null
 
-          # Get app info
+          # Get app info and compile
           $appJson = Get-Content -Path "app.json" -Raw | ConvertFrom-Json
           $appFileName = "$($appJson.publisher)_$($appJson.name)_$($appJson.version).app"
 
-          # Compile
-          Write-Host "Compiling AL extension..."
-          & $alcPath.FullName /project:$PWD /packagecachepath:.alpackages /out:.output\$appFileName
+          Write-Host "Compiling..."
+          & $alcPath /project:"$PWD" /packagecachepath:".alpackages" /out:".output\$appFileName"
 
           if ($LASTEXITCODE -ne 0) {
               Write-Host "::error::Compilation failed"

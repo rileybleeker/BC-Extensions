@@ -104,43 +104,44 @@ jobs:
           Import-Module BcContainerHelper
           Write-Host "BcContainerHelper version: $((Get-Module BcContainerHelper).Version)"
 
-      - name: Download BC Artifacts and Compile
-        env:
-          AUTH_CONTEXT: ${{ secrets.BC_AUTH_CONTEXT }}
+      - name: Create Compiler Folder and Compile
         run: |
           Import-Module BcContainerHelper
 
-          # Parse auth context
-          $authContext = $env:AUTH_CONTEXT | ConvertFrom-Json
-
-          # Get BC artifact URL for the target version
+          # Get BC artifact URL
           $artifactUrl = Get-BcArtifactUrl -type OnPrem -country us -select Latest
-
           Write-Host "Using BC artifact: $artifactUrl"
 
-          # Download and extract compiler
-          $compilerFolder = Join-Path $env:TEMP "alc"
-          $symbolsFolder = Join-Path $env:TEMP "symbols"
+          # Create compiler folder using BcContainerHelper
+          $compilerFolder = New-BcCompilerFolder -artifactUrl $artifactUrl -cacheFolder (Join-Path $env:TEMP "cache")
+          Write-Host "Compiler folder: $compilerFolder"
 
-          # Download the compiler from artifacts
-          Download-Artifacts -artifactUrl $artifactUrl -basePath $env:TEMP -includePlatform
-
-          # Find alc.exe
-          $alcPath = Get-ChildItem -Path $env:TEMP -Recurse -Filter "alc.exe" | Select-Object -First 1
-
-          if (-not $alcPath) {
-              Write-Host "::error::Could not find alc.exe"
-              exit 1
+          # Find alc.exe in the compiler folder
+          $alcPath = Join-Path $compilerFolder "alc.exe"
+          if (-not (Test-Path $alcPath)) {
+              # Try to find it recursively
+              $alcFile = Get-ChildItem -Path $compilerFolder -Recurse -Filter "alc.exe" | Select-Object -First 1
+              if ($alcFile) {
+                  $alcPath = $alcFile.FullName
+              } else {
+                  Write-Host "::error::Could not find alc.exe in compiler folder"
+                  Write-Host "Compiler folder contents:"
+                  Get-ChildItem -Path $compilerFolder -Recurse | Select-Object FullName
+                  exit 1
+              }
           }
 
-          Write-Host "Found AL compiler: $($alcPath.FullName)"
+          Write-Host "Found AL compiler: $alcPath"
 
-          # Copy symbols from .alpackages
+          # Verify .alpackages exists
           $symbolsPath = ".alpackages"
           if (-not (Test-Path $symbolsPath)) {
-              Write-Host "::error::.alpackages folder not found"
+              Write-Host "::error::.alpackages folder not found. Ensure symbols are committed or downloaded."
               exit 1
           }
+
+          Write-Host "Using symbols from: $symbolsPath"
+          Get-ChildItem $symbolsPath -Filter "*.app" | ForEach-Object { Write-Host "  - $($_.Name)" }
 
           # Create output folder
           $outputFolder = ".output"
@@ -152,20 +153,16 @@ jobs:
 
           # Compile
           Write-Host "Compiling AL extension..."
-          $alcArgs = @(
-              "/project:$PWD"
-              "/packagecachepath:$symbolsPath"
-              "/out:$outputFolder\$appFileName"
-          )
+          Write-Host "Command: $alcPath /project:$PWD /packagecachepath:$symbolsPath /out:$outputFolder\$appFileName"
 
-          & $alcPath.FullName $alcArgs
+          & $alcPath /project:"$PWD" /packagecachepath:"$symbolsPath" /out:"$outputFolder\$appFileName"
 
           if ($LASTEXITCODE -ne 0) {
               Write-Host "::error::Compilation failed with exit code $LASTEXITCODE"
               exit $LASTEXITCODE
           }
 
-          Write-Host "Compilation successful: $appFileName"
+          Write-Host "Compilation successful!"
           Get-ChildItem $outputFolder
 
       - name: Upload Build Artifact
