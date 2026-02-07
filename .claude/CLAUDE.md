@@ -131,4 +131,16 @@ Use `/new-feature` command or manually:
 ## Testing
 - Test codeunits go in `src/Testing/` or within feature folders
 - Use `TestDataGeneratorCodeunit.al` for test data setup
+- Follow GIVEN-WHEN-THEN pattern for test structure
 - Run tests via AL Test Runner or `/test` command
+
+## CI/CD
+- GitHub Actions for automated builds (configure as needed)
+- Use `scripts/deploy.ps1` for automated deployment
+- Use `scripts/publish.ps1` for full pipeline (validate, test, deploy)
+
+## AL Best Practices
+- Use `Rec.SetRange`/`Rec.SetFilter` patterns, never raw SQL
+- Always add OnInsert/OnModify triggers for audit fields
+- When creating new tables, always create corresponding Card/List pages
+- When modifying business logic, update related test codeunits
