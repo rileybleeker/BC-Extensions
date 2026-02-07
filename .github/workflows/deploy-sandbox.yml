@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'app.json'
+      - '.github/workflows/deploy-sandbox.yml'
   workflow_dispatch:
 
 permissions:
