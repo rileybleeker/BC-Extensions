@@ -52,7 +52,7 @@ jobs:
 
           # Use absolute paths throughout
           $workDir = $PWD.Path
-          $outputDir = Join-Path $workDir ".output"
+          $outputDir = Join-Path $workDir "output"
           Write-Host "Working directory: $workDir"
           Write-Host "Output directory: $outputDir"
 
@@ -175,7 +175,7 @@ jobs:
           Write-Host "OUTPUT_DIR env var: $env:OUTPUT_DIR"
 
           # Check the hardcoded path directly
-          $hardcodedPath = "D:\a\BC-Extensions\BC-Extensions\.output"
+          $hardcodedPath = "D:\a\BC-Extensions\BC-Extensions\output"
           Write-Host "Checking hardcoded path: $hardcodedPath"
           if (Test-Path $hardcodedPath) {
               Write-Host "Hardcoded path exists. Contents:"
@@ -185,12 +185,12 @@ jobs:
           }
 
           # Also check relative path
-          Write-Host "Checking relative .output path:"
-          if (Test-Path ".output") {
-              Write-Host "Relative .output exists. Contents:"
-              Get-ChildItem ".output" -Recurse
+          Write-Host "Checking relative output path:"
+          if (Test-Path "output") {
+              Write-Host "Relative output exists. Contents:"
+              Get-ChildItem "output" -Recurse
           } else {
-              Write-Host "Relative .output does NOT exist"
+              Write-Host "Relative output does NOT exist"
           }
 
           # Check if OUTPUT_DIR from step output works
@@ -206,7 +206,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: deploy-${{ steps.app-info.outputs.APP_VERSION }}-${{ github.run_number }}
-          path: .output/
+          path: output/
           retention-days: 90
           if-no-files-found: warn
 
