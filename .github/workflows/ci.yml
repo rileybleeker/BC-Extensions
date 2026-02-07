@@ -140,7 +140,7 @@ jobs:
           $symbolsInCompiler | ForEach-Object { Write-Host "  $($_.Name)" }
 
           # Create output folder
-          $outputFolder = ".output"
+          $outputFolder = "output"
           New-Item -ItemType Directory -Path $outputFolder -Force | Out-Null
 
           # Get app info
@@ -165,7 +165,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.app-info.outputs.ARTIFACT_NAME }}
-          path: .output/*.app
+          path: output/
           retention-days: 30
           if-no-files-found: error
 
