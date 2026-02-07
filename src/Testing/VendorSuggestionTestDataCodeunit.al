@@ -145,7 +145,7 @@ codeunit 50116 "Vendor Suggestion Test Data"
         Vendor.SetFilter("No.", 'VEND-TEST-*');
         if Vendor.FindSet() then
             repeat
-                Vendor.Blocked := true;
+                Vendor.Blocked := Vendor.Blocked::All;
                 Vendor.Modify();
             until Vendor.Next() = 0;
 
@@ -169,7 +169,7 @@ codeunit 50116 "Vendor Suggestion Test Data"
             Vendor."Performance Risk Level" := GetRiskLevel(OverallScore);
             Vendor."Score Trend" := "Vendor Score Trend"::Stable;
             Vendor."Last Performance Calc" := CurrentDateTime;
-            Vendor.Blocked := false;
+            Vendor.Blocked := Vendor.Blocked::" ";
             Vendor.Modify(true);
             exit;
         end;
