@@ -431,6 +431,48 @@ For comprehensive test cases, see [docs/TESTING.md](docs/TESTING.md).
 
 ---
 
+## CI/CD Pipeline
+
+Automated build and deployment using GitHub Actions.
+
+### Workflows
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci.yml` | Push to main/develop, PRs | Build & validate |
+| `deploy-sandbox.yml` | Push to main | Build & deploy to sandbox |
+
+### What Happens on Push to Main
+
+1. **Validate Object IDs** - Ensures all objects are within 50100-50199 range
+2. **Download BC Symbols** - Gets latest BC 27.x symbols via BcContainerHelper
+3. **Compile AL Code** - Runs `alc.exe` headlessly
+4. **Upload Artifact** - Saves `.app` file to GitHub Actions
+5. **Deploy to Sandbox** - Publishes extension to BC Online environment
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `BC_AUTH_CONTEXT` | JSON with `tenantId`, `clientId`, `clientSecret` |
+
+### Azure AD App Registration Setup
+
+1. Create app registration in Azure Portal
+2. Add API permission: `Dynamics 365 Business Central > API.ReadWrite.All`
+3. Create client secret
+4. In BC, add the app to **Microsoft Entra Applications** with `EXTEN. MGT. - ADMIN` permission set
+
+### Manual Deployment
+
+Trigger manually from GitHub Actions tab → "Deploy to Sandbox" → "Run workflow"
+
+### Build Artifacts
+
+All builds are saved as GitHub Actions artifacts with 90-day retention.
+
+---
+
 ## Installation
 
 ### From VS Code (Development)
