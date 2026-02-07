@@ -1,4 +1,4 @@
-pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
+pageextension 50151 "Planning Worksheet Vendor Ext" extends "Planning Worksheet"
 {
     layout
     {
@@ -49,18 +49,6 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
                 ToolTip = 'Indicates if alternative vendors are available.';
                 Visible = ShowVendorRecommendations;
             }
-            field("Substitute Available"; Rec."Substitute Available")
-            {
-                ApplicationArea = All;
-                ToolTip = 'Indicates if a substitute item is available with faster delivery.';
-                Visible = ShowVendorRecommendations;
-            }
-            field("Recommended Lead Time"; Rec."Recommended Lead Time")
-            {
-                ApplicationArea = All;
-                ToolTip = 'Lead time in days for the recommended vendor.';
-                Visible = ShowVendorRecommendations;
-            }
         }
     }
 
@@ -93,25 +81,6 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
                         CurrPage.Update(false);
                     end;
                 }
-                action(EnrichAllLines)
-                {
-                    ApplicationArea = All;
-                    Caption = 'Enrich All Lines';
-                    ToolTip = 'Add vendor recommendations to all lines.';
-                    Image = AllLines;
-
-                    trigger OnAction()
-                    var
-                        ReqLine: Record "Requisition Line";
-                        EnrichCount: Integer;
-                    begin
-                        ReqLine.SetRange("Worksheet Template Name", Rec."Worksheet Template Name");
-                        ReqLine.SetRange("Journal Batch Name", Rec."Journal Batch Name");
-                        EnrichCount := EnrichRequisitionLines(ReqLine);
-                        Message('%1 lines enriched with vendor recommendations.', EnrichCount);
-                        CurrPage.Update(false);
-                    end;
-                }
                 action(ApplyRecommendedVendor)
                 {
                     ApplicationArea = All;
@@ -135,29 +104,15 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
                 action(ViewVendorComparison)
                 {
                     ApplicationArea = All;
-                    Caption = 'View Vendor Comparison';
+                    Caption = 'Compare Vendors';
                     ToolTip = 'Compare available vendors for this item.';
                     Image = Vendor;
+                    Promoted = true;
+                    PromotedCategory = Process;
 
                     trigger OnAction()
                     begin
                         ShowVendorComparison();
-                    end;
-                }
-                action(CreatePurchaseSuggestion)
-                {
-                    ApplicationArea = All;
-                    Caption = 'Create Purchase Suggestion';
-                    ToolTip = 'Create a purchase suggestion with vendor comparison.';
-                    Image = Suggest;
-
-                    trigger OnAction()
-                    var
-                        PurchSuggMgr: Codeunit "Purchase Suggestion Manager";
-                        PurchSuggestion: Record "Purchase Suggestion";
-                    begin
-                        PurchSuggestion := PurchSuggMgr.GenerateFromRequisitionLine(Rec);
-                        Page.Run(Page::"Purchase Suggestion Card", PurchSuggestion);
                     end;
                 }
                 action(ToggleRecommendations)
@@ -176,14 +131,6 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
         }
         addlast(Navigation)
         {
-            action(PurchaseSuggestions)
-            {
-                ApplicationArea = All;
-                Caption = 'Purchase Suggestions';
-                ToolTip = 'View all purchase suggestions.';
-                Image = OrderList;
-                RunObject = page "Purchase Suggestion List";
-            }
             action(VendorPerformance)
             {
                 ApplicationArea = All;
@@ -212,7 +159,6 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
 
     local procedure SetStyles()
     begin
-        // Recommended vendor style
         if Rec."Recommended Vendor No." <> '' then begin
             if Rec."Vendor No." = Rec."Recommended Vendor No." then
                 RecommendedVendorStyle := 'Favorable'
@@ -221,7 +167,6 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
         end else
             RecommendedVendorStyle := 'Subordinate';
 
-        // Score style
         if Rec."Recommended Vendor Score" >= 80 then
             ScoreStyle := 'Favorable'
         else if Rec."Recommended Vendor Score" >= 60 then
@@ -242,7 +187,6 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
         if ReqLine.FindSet() then
             repeat
                 if ReqLine.Type = ReqLine.Type::Item then begin
-                    // Get vendor recommendations
                     VendorSelector.GetRankedVendors(
                         ReqLine."No.",
                         ReqLine."Location Code",
@@ -253,13 +197,12 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
 
                     if TempVendorRanking.FindFirst() then begin
                         ReqLine."Recommended Vendor No." := TempVendorRanking."Vendor No.";
-                        ReqLine."Recommended Vendor Name" := TempVendorRanking."Vendor Name";  // Use cached name
+                        ReqLine."Recommended Vendor Name" := TempVendorRanking."Vendor Name";
                         ReqLine."Recommended Vendor Score" := TempVendorRanking."Overall Score";
                         ReqLine."Recommended Unit Cost" := TempVendorRanking."Unit Cost";
                         ReqLine."Recommended Lead Time" := TempVendorRanking."Lead Time Days";
                         ReqLine."Alt Vendor Available" := TempVendorRanking.Count() > 1;
 
-                        // Check for substitutes
                         ItemSubstitution.SetRange(Type, ItemSubstitution.Type::Item);
                         ItemSubstitution.SetRange("No.", ReqLine."No.");
                         if ItemSubstitution.FindFirst() then begin
@@ -322,19 +265,16 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
         RequiredDate: Date;
         RequiredQty: Decimal;
     begin
-        // Use Due Date if available, otherwise default to 2 weeks from today
         if Rec."Due Date" <> 0D then
             RequiredDate := Rec."Due Date"
         else
             RequiredDate := CalcDate('<2W>', Today);
 
-        // Use Quantity if available, otherwise default to 1
         if Rec.Quantity > 0 then
             RequiredQty := Rec.Quantity
         else
             RequiredQty := 1;
 
-        // Get ranked vendors for this item
         VendorSelector.GetRankedVendors(
             Rec."No.",
             Rec."Location Code",
@@ -343,11 +283,9 @@ pageextension 50150 "Req Worksheet Vendor Ext" extends "Req. Worksheet"
             TempVendorRanking
         );
 
-        // If no vendors found, return empty to fall back to standard lookup
         if TempVendorRanking.IsEmpty then
             exit('');
 
-        // Show comparison page and get selection
         VendorComparisonPage.SetData(TempVendorRanking, Rec."No.", RequiredQty, RequiredDate);
         if VendorComparisonPage.RunModal() = Action::LookupOK then
             exit(VendorComparisonPage.GetSelectedVendor());

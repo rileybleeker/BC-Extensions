@@ -4,11 +4,13 @@ page 50152 "Vendor Comparison"
     ApplicationArea = All;
     SourceTable = "Vendor Ranking";
     SourceTableTemporary = true;
-    Caption = 'Vendor Comparison';
+    Caption = 'Vendor Comparison - Select a Vendor';
     Editable = false;
     InsertAllowed = false;
     DeleteAllowed = false;
     ModifyAllowed = false;
+    UsageCategory = None;
+    DataCaptionExpression = GetDataCaption();
 
     layout
     {
@@ -122,10 +124,12 @@ page 50152 "Vendor Comparison"
                 Promoted = true;
                 PromotedCategory = Process;
                 PromotedIsBig = true;
+                ShortcutKey = 'Return';
 
                 trigger OnAction()
                 begin
                     SelectedVendorNo := Rec."Vendor No.";
+                    VendorSelected := true;
                     CurrPage.Close();
                 end;
             }
@@ -163,6 +167,7 @@ page 50152 "Vendor Comparison"
         RequiredQty: Decimal;
         RequiredDate: Date;
         SelectedVendorNo: Code[20];
+        VendorSelected: Boolean;
         ScoreStyle: Text;
         CanMeetStyle: Text;
 
@@ -205,5 +210,25 @@ page 50152 "Vendor Comparison"
             CanMeetStyle := 'Favorable'
         else
             CanMeetStyle := 'Unfavorable';
+    end;
+
+    local procedure GetDataCaption(): Text
+    var
+        Item: Record Item;
+    begin
+        if Item.Get(ItemNo) then
+            exit(StrSubstNo('%1 - %2', ItemNo, Item.Description));
+        exit(ItemNo);
+    end;
+
+    trigger OnQueryClosePage(CloseAction: Action): Boolean
+    begin
+        if VendorSelected then
+            exit(true);
+        if CloseAction = Action::LookupOK then begin
+            SelectedVendorNo := Rec."Vendor No.";
+            exit(true);
+        end;
+        exit(true);
     end;
 }
