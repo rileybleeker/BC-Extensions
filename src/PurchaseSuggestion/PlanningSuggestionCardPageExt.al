@@ -23,9 +23,9 @@ pageextension 50151 "Planning Sugg Card Purch Ext" extends "Planning Suggestion 
                         Error('Item %1 not found.', Rec."Item No.");
 
                     // Calculate required quantity based on suggested reorder quantity
-                    RequiredQty := Rec."Sugg. Reorder Quantity";
+                    RequiredQty := Rec."Suggested Reorder Quantity";
                     if RequiredQty = 0 then
-                        RequiredQty := Rec."Sugg. Safety Stock" + Rec."Sugg. Reorder Point";
+                        RequiredQty := Rec."Suggested Safety Stock" + Rec."Suggested Reorder Point";
 
                     // Default required date to 2 weeks from now
                     RequiredDate := CalcDate('<2W>', Today);
@@ -79,7 +79,7 @@ pageextension 50151 "Planning Sugg Card Purch Ext" extends "Planning Suggestion 
                     RequiredQty: Decimal;
                     RequiredDate: Date;
                 begin
-                    RequiredQty := Rec."Sugg. Reorder Quantity";
+                    RequiredQty := Rec."Suggested Reorder Quantity";
                     if RequiredQty = 0 then
                         RequiredQty := 100;  // Default
                     RequiredDate := CalcDate('<2W>', Today);  // Calculate once

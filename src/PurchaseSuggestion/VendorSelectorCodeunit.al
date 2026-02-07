@@ -127,8 +127,6 @@ codeunit 50151 "Vendor Selector"
 
     procedure GetPriceScore(VendorNo: Code[20]; ItemNo: Code[20]; RequiredQty: Decimal): Decimal
     var
-        ItemVendor: Record "Item Vendor";
-        PurchPrice: Record "Purchase Price";
         Item: Record Item;
         VendorCost: Decimal;
         BestCost: Decimal;
@@ -136,16 +134,8 @@ codeunit 50151 "Vendor Selector"
     begin
         VendorCost := GetVendorUnitCost(VendorNo, ItemNo, RequiredQty);
 
-        // Find the best cost among all vendors
+        // Use item unit cost as the baseline for comparison
         BestCost := VendorCost;
-        ItemVendor.SetRange("Item No.", ItemNo);
-        if ItemVendor.FindSet() then
-            repeat
-                if ItemVendor."Direct Unit Cost" > 0 then
-                    if (BestCost = 0) or (ItemVendor."Direct Unit Cost" < BestCost) then
-                        BestCost := ItemVendor."Direct Unit Cost";
-            until ItemVendor.Next() = 0;
-
         if Item.Get(ItemNo) and (Item."Unit Cost" > 0) then
             if (BestCost = 0) or (Item."Unit Cost" < BestCost) then
                 BestCost := Item."Unit Cost";
@@ -287,19 +277,15 @@ codeunit 50151 "Vendor Selector"
 
     procedure GetVendorUnitCost(VendorNo: Code[20]; ItemNo: Code[20]; Quantity: Decimal): Decimal
     var
-        ItemVendor: Record "Item Vendor";
-        PurchPrice: Record "Purchase Price";
         Item: Record Item;
-        BestPrice: Decimal;
     begin
-        // Check Item Vendor catalog
-        if ItemVendor.Get(VendorNo, ItemNo, '') then
-            if ItemVendor."Direct Unit Cost" > 0 then
-                exit(ItemVendor."Direct Unit Cost");
-
-        // Fallback to item unit cost
-        if Item.Get(ItemNo) then
+        // Use item's last direct cost or unit cost as vendor pricing baseline
+        // Note: For vendor-specific pricing, implement BC Price Source Group integration
+        if Item.Get(ItemNo) then begin
+            if Item."Last Direct Cost" > 0 then
+                exit(Item."Last Direct Cost");
             exit(Item."Unit Cost");
+        end;
 
         exit(0);
     end;

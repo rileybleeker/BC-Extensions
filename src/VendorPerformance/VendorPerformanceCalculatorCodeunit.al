@@ -238,13 +238,13 @@ codeunit 50120 "Vendor Performance Calculator"
     local procedure CalculatePricingMetrics(var VendorPerf: Record "Vendor Performance")
     var
         PurchInvLine: Record "Purch. Inv. Line";
-        ItemVendor: Record "Item Vendor";
+        Item: Record Item;
         TotalVariance: Decimal;
         TotalLines: Integer;
         ExpectedCost: Decimal;
         ActualCost: Decimal;
     begin
-        // Calculate price variance from invoices vs item vendor catalog
+        // Calculate price variance from invoices vs item standard cost
         PurchInvLine.SetRange("Buy-from Vendor No.", VendorPerf."Vendor No.");
         PurchInvLine.SetRange("Posting Date", VendorPerf."Period Start Date", VendorPerf."Period End Date");
         PurchInvLine.SetFilter(Type, '%1', PurchInvLine.Type::Item);
@@ -254,11 +254,11 @@ codeunit 50120 "Vendor Performance Calculator"
                 TotalLines += 1;
                 ActualCost := PurchInvLine."Direct Unit Cost";
 
-                // Get expected cost from Item Vendor catalog
-                if ItemVendor.Get(VendorPerf."Vendor No.", PurchInvLine."No.", '') then
-                    ExpectedCost := ItemVendor."Direct Unit Cost"
+                // Get expected cost from Item's standard cost
+                if Item.Get(PurchInvLine."No.") and (Item."Unit Cost" > 0) then
+                    ExpectedCost := Item."Unit Cost"
                 else
-                    ExpectedCost := ActualCost;  // No catalog price, assume actual is expected
+                    ExpectedCost := ActualCost;  // No standard cost, assume actual is expected
 
                 if ExpectedCost > 0 then
                     TotalVariance += Abs((ActualCost - ExpectedCost) / ExpectedCost * 100);
