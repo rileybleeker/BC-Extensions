@@ -307,6 +307,35 @@ For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md).
 | Enum | 50112 | Demand Source Type | Sale/Transfer/Production/Other |
 | PermissionSet | 50110 | Planning Suggest Admin | Full access |
 | PermissionSet | 50111 | Planning Suggest View | Read-only access |
+| **Vendor Performance** ||||
+| Table | 50120 | Vendor Performance | Period-based vendor metrics |
+| Table | 50121 | Lead Time Variance Entry | Individual delivery tracking |
+| Page | 50120 | Vendor Performance List | Performance overview |
+| Page | 50121 | Vendor Performance Card | Detailed vendor metrics |
+| Page | 50122 | Vendor Score Factbox | Quick score display |
+| Page | 50123 | Lead Time Variance Entries | Delivery history |
+| Codeunit | 50120 | Vendor Performance Calculator | Metric calculations |
+| Codeunit | 50121 | Lead Time Variance Tracker | Delivery tracking |
+| Enum | 50120 | Vendor Score Trend | Improving/Stable/Declining |
+| Enum | 50121 | Vendor Risk Level | Low/Medium/High/Critical |
+| Enum | 50122 | Delivery Status | On-Time/Early/Late |
+| **Vendor Non-Conformance** ||||
+| Table | 50130 | Vendor NCR | Non-conformance records |
+| Page | 50130 | Vendor NCR List | NCR list view |
+| Page | 50131 | Vendor NCR Card | NCR details |
+| Codeunit | 50130 | Vendor NCR | NCR management |
+| Enum | 50130 | NCR Category | Quality/Delivery/Documentation/Other |
+| Enum | 50131 | NCR Status | Open/Under Review/Closed |
+| Enum | 50132 | NCR Disposition | Return/Rework/Use As Is/Scrap |
+| **Purchase Suggestions** ||||
+| Table | 50150 | Purchase Suggestion | Vendor recommendation records |
+| Table | 50151 | Vendor Ranking | Temporary ranking results |
+| Page | 50150 | Purchase Suggestion List | Suggestion overview |
+| Page | 50151 | Purchase Suggestion Card | Suggestion details |
+| Page | 50152 | Vendor Comparison | Side-by-side comparison |
+| Codeunit | 50150 | Purchase Suggestion Manager | Workflow management |
+| Codeunit | 50151 | Vendor Selector | Vendor scoring/ranking |
+| Enum | 50150 | Purchase Suggestion Status | Pending/Approved/Rejected/Converted |
 
 ---
 
@@ -387,6 +416,91 @@ Basic smoke tests for each feature:
 6. Expected: Item planning parameters updated with suggested values
 
 For comprehensive test cases, see [docs/TESTING.md](docs/TESTING.md).
+
+---
+
+### 7. Vendor Performance Tracking
+Comprehensive vendor scorecard system with multi-dimensional performance metrics.
+
+**Files:**
+- `VendorPerformanceTable.al` - Period-based performance records
+- `VendorPerformanceCalculatorCodeunit.al` - Metric calculations from transaction history
+- `VendorPerformanceListPage.al` / `VendorPerformanceCardPage.al` - UI
+- `VendorTableExt.al` / `VendorCardPageExt.al` - Vendor card extensions
+- `LeadTimeVarianceEntryTable.al` - Individual delivery tracking
+
+**Metrics Tracked:**
+- **Delivery**: On-time %, early/late receipts, total receipts
+- **Lead Time**: Promised vs actual days, variance, standard deviation, reliability %
+- **Quality**: Accept rate %, PPM defect rate, NCR count
+- **Pricing**: Average price variance %, price stability score
+- **Composite**: Overall score (0-100), trend (improving/stable/declining), risk level
+
+**Business Value:**
+- Data-driven vendor evaluation and selection
+- Early warning of vendor performance issues
+- Supports strategic sourcing decisions
+
+---
+
+### 8. Vendor Non-Conformance Reports (NCR)
+Formal tracking of vendor quality issues with root cause analysis and corrective actions.
+
+**Files:**
+- `VendorNCRTable.al` - NCR records
+- `VendorNCRListPage.al` / `VendorNCRCardPage.al` - UI
+- `VendorNCRCodeunit.al` - NCR management logic
+- `NCRCategoryEnum.al` / `NCRStatusEnum.al` / `NCRDispositionEnum.al` - Enumerations
+
+**Functionality:**
+- Create NCRs for vendor quality issues (wrong item, damaged, out of spec, etc.)
+- Track affected quantity, cost impact, lot/serial numbers
+- Document root cause, corrective action, preventive action
+- Priority levels (Low/Medium/High/Critical)
+- Status workflow (Open → Under Review → Closed)
+- Links to Quality Orders and Item Ledger Entries
+- Automatic NCR number series
+
+**Business Value:**
+- Formal quality issue documentation
+- Vendor accountability and improvement tracking
+- Cost of poor quality visibility
+- Feeds into vendor performance scoring
+
+---
+
+### 9. Purchase Suggestions with Vendor Ranking
+Smart vendor recommendations based on performance, price, and lead time scoring.
+
+**Files:**
+- `PurchaseSuggestionTable.al` - Suggestion records with up to 3 ranked vendors
+- `VendorSelectorCodeunit.al` - Vendor scoring and ranking logic
+- `VendorRankingTable.al` - Temporary ranking results
+- `VendorComparisonPage.al` - Side-by-side vendor comparison
+- `PurchaseSuggestionManagerCodeunit.al` - Workflow management
+- `PlanningSuggestionCardPageExt.al` - Integration with planning suggestions
+
+**Scoring Weights:**
+| Factor | Weight |
+|--------|--------|
+| Quality (Accept Rate) | 30% |
+| Delivery (On-Time %) | 30% |
+| Lead Time | 25% |
+| Price | 15% |
+
+**Functionality:**
+- Automatically ranks vendors for each item
+- Compares up to 3 vendors with scores, costs, lead times
+- Generates recommendation reasons
+- Integrates with Planning Parameter Suggestions
+- Supports substitute item suggestions
+- Approval workflow before purchase order creation
+
+**Business Value:**
+- Consistent, data-driven vendor selection
+- Reduces purchasing decision time
+- Balances cost vs. quality vs. speed tradeoffs
+- Prevents ad-hoc vendor choices
 
 ---
 
