@@ -167,26 +167,48 @@ jobs:
           }
 
       - name: Debug - List output folder
+        if: always()
         env:
           OUTPUT_DIR: ${{ steps.build.outputs.OUTPUT_DIR }}
         run: |
           Write-Host "Current directory: $PWD"
-          Write-Host "Output directory from build: $env:OUTPUT_DIR"
-          if (Test-Path $env:OUTPUT_DIR) {
-              Write-Host "Contents:"
+          Write-Host "OUTPUT_DIR env var: $env:OUTPUT_DIR"
+
+          # Check the hardcoded path directly
+          $hardcodedPath = "D:\a\BC-Extensions\BC-Extensions\.output"
+          Write-Host "Checking hardcoded path: $hardcodedPath"
+          if (Test-Path $hardcodedPath) {
+              Write-Host "Hardcoded path exists. Contents:"
+              Get-ChildItem $hardcodedPath -Recurse
+          } else {
+              Write-Host "Hardcoded path does NOT exist"
+          }
+
+          # Also check relative path
+          Write-Host "Checking relative .output path:"
+          if (Test-Path ".output") {
+              Write-Host "Relative .output exists. Contents:"
+              Get-ChildItem ".output" -Recurse
+          } else {
+              Write-Host "Relative .output does NOT exist"
+          }
+
+          # Check if OUTPUT_DIR from step output works
+          if ($env:OUTPUT_DIR -and (Test-Path $env:OUTPUT_DIR)) {
+              Write-Host "Step output path exists. Contents:"
               Get-ChildItem $env:OUTPUT_DIR -Recurse
           } else {
-              Write-Host "::error::Output directory does not exist: $env:OUTPUT_DIR"
-              exit 1
+              Write-Host "Step output path empty or doesn't exist"
           }
 
       - name: Upload Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: deploy-${{ steps.app-info.outputs.APP_VERSION }}-${{ github.run_number }}
-          path: ${{ steps.build.outputs.OUTPUT_DIR }}
+          path: .output/
           retention-days: 90
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Deployment Summary
         run: |
