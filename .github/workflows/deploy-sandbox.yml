@@ -78,7 +78,8 @@ jobs:
           $appFileName = "$($appJson.publisher)_$($appJson.name)_$($appJson.version).app"
 
           Write-Host "Compiling..."
-          & $alcPath /project:"$PWD" /packagecachepath:".alpackages" /out:".output\$appFileName"
+          Write-Host "alc.exe /project:$PWD /packagecachepath:$compilerFolder /out:.output\$appFileName"
+          & $alcPath /project:"$PWD" /packagecachepath:"$compilerFolder" /out:".output\$appFileName"
 
           if ($LASTEXITCODE -ne 0) {
               Write-Host "::error::Compilation failed"
