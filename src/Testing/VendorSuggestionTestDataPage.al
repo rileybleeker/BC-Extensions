@@ -39,6 +39,22 @@ page 50116 "Vendor Suggestion Test Data"
                     Style = Strong;
                     ToolTip = 'Number of item-vendor relationships for test items';
                 }
+                field(LeadTimeVarianceCount; LeadTimeVarianceCount)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Lead Time Variance Entries';
+                    Editable = false;
+                    Style = Strong;
+                    ToolTip = 'Number of lead time variance entries in the system';
+                }
+                field(VendorPerformanceCount; VendorPerformanceCount)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Vendor Performance Records';
+                    Editable = false;
+                    Style = Strong;
+                    ToolTip = 'Number of vendor performance records in the system';
+                }
             }
             group(TestData)
             {
@@ -205,6 +221,46 @@ page 50116 "Vendor Suggestion Test Data"
                         CurrPage.Update(false);
                     end;
                 }
+                action(DeleteAllLeadTimeVariance)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Delete ALL Lead Time Variance Entries';
+                    Image = Delete;
+                    ToolTip = 'Delete all lead time variance entries from the system';
+
+                    trigger OnAction()
+                    var
+                        LeadTimeVariance: Record "Lead Time Variance Entry";
+                    begin
+                        if not Confirm('Delete ALL %1 Lead Time Variance Entries?\This cannot be undone.', false, LeadTimeVariance.Count) then
+                            exit;
+
+                        LeadTimeVariance.DeleteAll();
+                        RefreshCounts();
+                        CurrPage.Update(false);
+                        Message('All Lead Time Variance Entries deleted.');
+                    end;
+                }
+                action(DeleteAllVendorPerformance)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Delete ALL Vendor Performance Records';
+                    Image = Delete;
+                    ToolTip = 'Delete all vendor performance records from the system';
+
+                    trigger OnAction()
+                    var
+                        VendorPerf: Record "Vendor Performance";
+                    begin
+                        if not Confirm('Delete ALL %1 Vendor Performance Records?\This cannot be undone.', false, VendorPerf.Count) then
+                            exit;
+
+                        VendorPerf.DeleteAll();
+                        RefreshCounts();
+                        CurrPage.Update(false);
+                        Message('All Vendor Performance Records deleted.');
+                    end;
+                }
             }
         }
         area(Navigation)
@@ -260,6 +316,8 @@ page 50116 "Vendor Suggestion Test Data"
 
                 actionref(GenerateAll_Promoted; GenerateAll) { }
                 actionref(CleanupAll_Promoted; CleanupAll) { }
+                actionref(DeleteAllLeadTimeVariance_Promoted; DeleteAllLeadTimeVariance) { }
+                actionref(DeleteAllVendorPerformance_Promoted; DeleteAllVendorPerformance) { }
             }
             group(Category_Navigate)
             {
@@ -284,6 +342,8 @@ page 50116 "Vendor Suggestion Test Data"
         VendorCount: Integer;
         ItemCount: Integer;
         ItemVendorCount: Integer;
+        LeadTimeVarianceCount: Integer;
+        VendorPerformanceCount: Integer;
         VendorInfoText: Text;
         ItemInfoText: Text;
         ExpectedScoresText: Text;
@@ -291,10 +351,14 @@ page 50116 "Vendor Suggestion Test Data"
     local procedure RefreshCounts()
     var
         TestDataGen: Codeunit "Vendor Suggestion Test Data";
+        LeadTimeVariance: Record "Lead Time Variance Entry";
+        VendorPerf: Record "Vendor Performance";
     begin
         VendorCount := TestDataGen.GetTestVendorCount();
         ItemCount := TestDataGen.GetTestItemCount();
         ItemVendorCount := TestDataGen.GetTestItemVendorCount();
+        LeadTimeVarianceCount := LeadTimeVariance.Count;
+        VendorPerformanceCount := VendorPerf.Count;
     end;
 
     local procedure SetInfoText()
