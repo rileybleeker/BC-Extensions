@@ -46,8 +46,15 @@ jobs:
           Write-Host "BcContainerHelper version: $((Get-Module BcContainerHelper).Version)"
 
       - name: Build Extension
+        id: build
         run: |
           Import-Module BcContainerHelper
+
+          # Use absolute paths throughout
+          $workDir = $PWD.Path
+          $outputDir = Join-Path $workDir ".output"
+          Write-Host "Working directory: $workDir"
+          Write-Host "Output directory: $outputDir"
 
           # Get BC artifact URL
           $artifactUrl = Get-BcArtifactUrl -type Sandbox -country us -select Latest
@@ -71,40 +78,60 @@ jobs:
 
           Write-Host "Found AL compiler: $alcPath"
 
-          # Create output folder
-          New-Item -ItemType Directory -Path ".output" -Force | Out-Null
+          # Create output folder with absolute path
+          New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+          Write-Host "Created output directory: $(Test-Path $outputDir)"
 
           # Get app info and compile
           $appJson = Get-Content -Path "app.json" -Raw | ConvertFrom-Json
           $appFileName = "$($appJson.publisher)_$($appJson.name)_$($appJson.version).app"
+          $appFullPath = Join-Path $outputDir $appFileName
 
-          Write-Host "Compiling..."
-          Write-Host "alc.exe /project:$PWD /packagecachepath:$compilerFolder /out:.output\$appFileName"
-          & $alcPath /project:"$PWD" /packagecachepath:"$compilerFolder" /out:".output\$appFileName"
+          Write-Host "Compiling to: $appFullPath"
+          & $alcPath /project:"$workDir" /packagecachepath:"$compilerFolder" /out:"$appFullPath"
 
-          if ($LASTEXITCODE -ne 0) {
-              Write-Host "::error::Compilation failed"
-              exit $LASTEXITCODE
+          $exitCode = $LASTEXITCODE
+          Write-Host "Compiler exit code: $exitCode"
+
+          if ($exitCode -ne 0) {
+              Write-Host "::error::Compilation failed with exit code $exitCode"
+              exit $exitCode
           }
 
-          Write-Host "Built: $appFileName"
-
           # Verify the file exists
-          $appPath = ".output\$appFileName"
-          if (Test-Path $appPath) {
-              Write-Host "Verified: $appPath exists ($(Get-Item $appPath).Length bytes)"
-              Get-ChildItem ".output"
+          if (Test-Path $appFullPath) {
+              $fileSize = (Get-Item $appFullPath).Length
+              Write-Host "SUCCESS: $appFullPath exists ($fileSize bytes)"
+
+              # Output for next steps
+              echo "APP_FILE=$appFullPath" >> $env:GITHUB_OUTPUT
+              echo "OUTPUT_DIR=$outputDir" >> $env:GITHUB_OUTPUT
+
+              # List directory contents
+              Write-Host "Output directory contents:"
+              Get-ChildItem $outputDir
           } else {
-              Write-Host "::error::App file not found at $appPath"
-              Get-ChildItem "." -Recurse -Filter "*.app" | ForEach-Object { Write-Host "Found: $($_.FullName)" }
+              Write-Host "::error::App file not found at $appFullPath"
+              Write-Host "Searching for .app files anywhere:"
+              Get-ChildItem $workDir -Recurse -Filter "*.app" | ForEach-Object { Write-Host "Found: $($_.FullName)" }
               exit 1
           }
 
       - name: Deploy to BC Sandbox
         env:
           AUTH_CONTEXT: ${{ secrets.BC_AUTH_CONTEXT }}
+          APP_FILE: ${{ steps.build.outputs.APP_FILE }}
         run: |
           Import-Module BcContainerHelper
+
+          # Use the app file path from build step
+          $appFilePath = $env:APP_FILE
+          Write-Host "Using app file from build step: $appFilePath"
+
+          if (-not (Test-Path $appFilePath)) {
+              Write-Host "::error::App file not found at $appFilePath"
+              exit 1
+          }
 
           # Parse the stored credentials
           $creds = $env:AUTH_CONTEXT | ConvertFrom-Json
@@ -115,15 +142,7 @@ jobs:
               -clientID $creds.clientId `
               -clientSecret (ConvertTo-SecureString -String $creds.clientSecret -AsPlainText -Force)
 
-          # Get the .app file
-          $appFile = Get-ChildItem -Path ".output" -Filter "*.app" | Select-Object -First 1
-
-          if (-not $appFile) {
-              Write-Host "::error::No .app file found"
-              exit 1
-          }
-
-          Write-Host "Deploying $($appFile.Name) to ${{ env.BC_ENVIRONMENT }}..."
+          Write-Host "Deploying to ${{ env.BC_ENVIRONMENT }}..."
           Write-Host "Tenant ID: $($creds.tenantId)"
 
           try {
@@ -131,7 +150,7 @@ jobs:
               Publish-PerTenantExtensionApps `
                   -bcAuthContext $authContext `
                   -environment "${{ env.BC_ENVIRONMENT }}" `
-                  -appFiles @($appFile.FullName) `
+                  -appFiles @($appFilePath) `
                   -schemaSyncMode Force
 
               Write-Host "Deployment complete!"
@@ -148,13 +167,16 @@ jobs:
           }
 
       - name: Debug - List output folder
+        env:
+          OUTPUT_DIR: ${{ steps.build.outputs.OUTPUT_DIR }}
         run: |
           Write-Host "Current directory: $PWD"
-          Write-Host "Contents of .output folder:"
-          if (Test-Path ".output") {
-              Get-ChildItem ".output" -Recurse
+          Write-Host "Output directory from build: $env:OUTPUT_DIR"
+          if (Test-Path $env:OUTPUT_DIR) {
+              Write-Host "Contents:"
+              Get-ChildItem $env:OUTPUT_DIR -Recurse
           } else {
-              Write-Host "::error::.output folder does not exist!"
+              Write-Host "::error::Output directory does not exist: $env:OUTPUT_DIR"
               exit 1
           }
 
@@ -162,7 +184,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: deploy-${{ steps.app-info.outputs.APP_VERSION }}-${{ github.run_number }}
-          path: .output/
+          path: ${{ steps.build.outputs.OUTPUT_DIR }}
           retention-days: 90
           if-no-files-found: error
 
