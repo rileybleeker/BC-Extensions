@@ -1,0 +1,30 @@
+{
+  "$schema": "https://aka.ms/AL-Go-settings-schema",
+  "type": "PTE",
+  "country": "us",
+  "appFolders": ["."],
+  "testFolders": [],
+  "bcContainerHelperVersion": "latest",
+  "artifact": "///us/Current",
+  "companyName": "CRONUS USA, Inc.",
+  "useCompilerFolder": true,
+  "doNotPublishApps": false,
+  "generateDependencyArtifact": true,
+  "applicationDependency": "27.0.0.0",
+  "platformDependency": "1.0.0.0",
+  "environments": {
+    "DEVRB": {
+      "environmentType": "Sandbox",
+      "companyName": "CRONUS USA, Inc."
+    }
+  },
+  "runs-on": "windows-latest",
+  "enableCodeCop": true,
+  "enableUICop": true,
+  "enablePerTenantExtensionCop": true,
+  "enableAppSourceCop": false,
+  "failOn": "error",
+  "rulesetFile": "",
+  "assignPremiumPlan": false,
+  "enableExternalRulesets": false
+}

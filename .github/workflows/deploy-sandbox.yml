@@ -1,0 +1,110 @@
+name: Deploy to Sandbox
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'app.json'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force deployment even if no changes'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: powershell
+
+env:
+  BC_ENVIRONMENT: DEVRB
+  BC_ENVIRONMENT_TYPE: Sandbox
+
+jobs:
+  build:
+    name: Build for Deployment
+    runs-on: windows-latest
+    outputs:
+      artifact-name: ${{ steps.app-info.outputs.ARTIFACT_NAME }}
+      app-version: ${{ steps.app-info.outputs.APP_VERSION }}
+      app-name: ${{ steps.app-info.outputs.APP_NAME }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read app.json
+        id: app-info
+        run: |
+          $appJson = Get-Content -Path "app.json" -Raw | ConvertFrom-Json
+          $artifactName = "deploy-$($appJson.name)_$($appJson.version)_${{ github.run_number }}"
+          echo "APP_NAME=$($appJson.name)" >> $env:GITHUB_OUTPUT
+          echo "APP_VERSION=$($appJson.version)" >> $env:GITHUB_OUTPUT
+          echo "ARTIFACT_NAME=$artifactName" >> $env:GITHUB_OUTPUT
+
+      - name: Download BC Symbols
+        uses: microsoft/AL-Go-Actions/DownloadSymbols@v5.2
+        with:
+          shell: powershell
+          project: .
+          authContext: ${{ secrets.BC_AUTH_CONTEXT }}
+
+      - name: Build AL Extension
+        uses: microsoft/AL-Go-Actions/Compile@v5.2
+        with:
+          shell: powershell
+          project: .
+          artifactsFolder: .output
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.app-info.outputs.ARTIFACT_NAME }}
+          path: .output/**/*.app
+          retention-days: 90
+
+  deploy:
+    name: Deploy to DEVRB Sandbox
+    runs-on: windows-latest
+    needs: build
+    environment:
+      name: sandbox-devrb
+      url: https://businesscentral.dynamics.com/${{ secrets.BC_TENANT_ID }}/${{ env.BC_ENVIRONMENT }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: .output/
+
+      - name: Publish to BC Sandbox
+        uses: microsoft/AL-Go-Actions/Publish@v5.2
+        with:
+          shell: powershell
+          project: .
+          authContext: ${{ secrets.BC_AUTH_CONTEXT }}
+          environment: ${{ env.BC_ENVIRONMENT }}
+          artifacts: .output
+
+      - name: Deployment Summary
+        run: |
+          Write-Host "================================================"
+          Write-Host "Deployment Complete"
+          Write-Host "================================================"
+          Write-Host "App: ${{ needs.build.outputs.app-name }}"
+          Write-Host "Version: ${{ needs.build.outputs.app-version }}"
+          Write-Host "Environment: ${{ env.BC_ENVIRONMENT }}"
+          Write-Host "Run: ${{ github.run_number }}"
+          Write-Host "Deployed by: ${{ github.actor }}"
+          Write-Host "================================================"
+          Write-Host ""
+          Write-Host "Access BC: https://businesscentral.dynamics.com/${{ secrets.BC_TENANT_ID }}/${{ env.BC_ENVIRONMENT }}"

@@ -1,0 +1,199 @@
+name: CI - Build AL Extension
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'app.json'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'app.json'
+  workflow_dispatch:
+    inputs:
+      skipTests:
+        description: 'Skip test execution'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: powershell
+
+env:
+  BC_ENVIRONMENT: DEVRB
+  BC_ENVIRONMENT_TYPE: Sandbox
+
+jobs:
+  build:
+    name: Build AL Extension
+    runs-on: windows-latest
+    outputs:
+      app-name: ${{ steps.app-info.outputs.APP_NAME }}
+      app-version: ${{ steps.app-info.outputs.APP_VERSION }}
+      artifact-name: ${{ steps.app-info.outputs.ARTIFACT_NAME }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read app.json
+        id: app-info
+        run: |
+          $appJson = Get-Content -Path "app.json" -Raw | ConvertFrom-Json
+          $artifactName = "$($appJson.name)_$($appJson.version)_${{ github.run_number }}"
+          echo "APP_NAME=$($appJson.name)" >> $env:GITHUB_OUTPUT
+          echo "APP_VERSION=$($appJson.version)" >> $env:GITHUB_OUTPUT
+          echo "APP_PUBLISHER=$($appJson.publisher)" >> $env:GITHUB_OUTPUT
+          echo "BC_VERSION=$($appJson.application)" >> $env:GITHUB_OUTPUT
+          echo "ARTIFACT_NAME=$artifactName" >> $env:GITHUB_OUTPUT
+
+      - name: Validate AL Object IDs
+        run: |
+          $errors = @()
+          $alFiles = Get-ChildItem -Path "src" -Filter "*.al" -Recurse
+
+          foreach ($file in $alFiles) {
+              $content = Get-Content $file.FullName -Raw
+
+              # Check table IDs
+              if ($content -match "(?m)^table\s+(\d+)") {
+                  $id = [int]$matches[1]
+                  if ($id -lt 50100 -or $id -gt 50199) {
+                      $errors += "Table ID $id in $($file.Name) outside range 50100-50199"
+                  }
+              }
+
+              # Check page IDs
+              if ($content -match "(?m)^page\s+(\d+)") {
+                  $id = [int]$matches[1]
+                  if ($id -lt 50100 -or $id -gt 50199) {
+                      $errors += "Page ID $id in $($file.Name) outside range 50100-50199"
+                  }
+              }
+
+              # Check codeunit IDs
+              if ($content -match "(?m)^codeunit\s+(\d+)") {
+                  $id = [int]$matches[1]
+                  if ($id -lt 50100 -or $id -gt 50199) {
+                      $errors += "Codeunit ID $id in $($file.Name) outside range 50100-50199"
+                  }
+              }
+
+              # Check enum IDs
+              if ($content -match "(?m)^enum\s+(\d+)") {
+                  $id = [int]$matches[1]
+                  if ($id -lt 50100 -or $id -gt 50199) {
+                      $errors += "Enum ID $id in $($file.Name) outside range 50100-50199"
+                  }
+              }
+          }
+
+          if ($errors.Count -gt 0) {
+              Write-Host "::error::Object ID validation failed"
+              $errors | ForEach-Object { Write-Host "::error::$_" }
+              exit 1
+          }
+
+          Write-Host "Validated $($alFiles.Count) AL files - all IDs within range 50100-50199"
+
+      - name: Download BC Symbols
+        uses: microsoft/AL-Go-Actions/DownloadSymbols@v5.2
+        with:
+          shell: powershell
+          project: .
+          authContext: ${{ secrets.BC_AUTH_CONTEXT }}
+
+      - name: Build AL Extension
+        uses: microsoft/AL-Go-Actions/Compile@v5.2
+        with:
+          shell: powershell
+          project: .
+          artifactsFolder: .output
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.app-info.outputs.ARTIFACT_NAME }}
+          path: .output/**/*.app
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Build Summary
+        run: |
+          Write-Host "================================================"
+          Write-Host "Build Complete"
+          Write-Host "================================================"
+          Write-Host "App: ${{ steps.app-info.outputs.APP_NAME }}"
+          Write-Host "Version: ${{ steps.app-info.outputs.APP_VERSION }}"
+          Write-Host "Publisher: ${{ steps.app-info.outputs.APP_PUBLISHER }}"
+          Write-Host "BC Target: ${{ steps.app-info.outputs.BC_VERSION }}"
+          Write-Host "Artifact: ${{ steps.app-info.outputs.ARTIFACT_NAME }}"
+          Write-Host "================================================"
+
+  test:
+    name: Run AL Tests
+    runs-on: windows-latest
+    needs: build
+    if: ${{ github.event.inputs.skipTests != 'true' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for Test Codeunits
+        id: check-tests
+        run: |
+          $testFiles = Get-ChildItem -Path "src" -Filter "*.al" -Recurse |
+            Where-Object { (Get-Content $_.FullName -Raw) -match "Subtype\s*=\s*Test" }
+
+          if ($testFiles.Count -eq 0) {
+              Write-Host "No test codeunits found (Subtype = Test). Skipping test execution."
+              echo "HAS_TESTS=false" >> $env:GITHUB_OUTPUT
+          } else {
+              Write-Host "Found $($testFiles.Count) test codeunit(s):"
+              $testFiles | ForEach-Object { Write-Host "  - $($_.Name)" }
+              echo "HAS_TESTS=true" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Download Build Artifact
+        if: steps.check-tests.outputs.HAS_TESTS == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: .output/
+
+      - name: Run AL Tests
+        if: steps.check-tests.outputs.HAS_TESTS == 'true'
+        uses: microsoft/AL-Go-Actions/RunTests@v5.2
+        with:
+          shell: powershell
+          project: .
+          authContext: ${{ secrets.BC_AUTH_CONTEXT }}
+          environment: ${{ env.BC_ENVIRONMENT }}
+          testResultsFormat: JUnit
+          testResultsFile: TestResults.xml
+
+      - name: Publish Test Results
+        if: steps.check-tests.outputs.HAS_TESTS == 'true' && always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: AL Test Results
+          path: TestResults.xml
+          reporter: java-junit
+          fail-on-error: true
+
+      - name: Upload Test Results
+        if: steps.check-tests.outputs.HAS_TESTS == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_number }}
+          path: TestResults.xml
+          retention-days: 14
