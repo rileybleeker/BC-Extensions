@@ -89,6 +89,17 @@ jobs:
 
           Write-Host "Built: $appFileName"
 
+          # Verify the file exists
+          $appPath = ".output\$appFileName"
+          if (Test-Path $appPath) {
+              Write-Host "Verified: $appPath exists ($(Get-Item $appPath).Length bytes)"
+              Get-ChildItem ".output"
+          } else {
+              Write-Host "::error::App file not found at $appPath"
+              Get-ChildItem "." -Recurse -Filter "*.app" | ForEach-Object { Write-Host "Found: $($_.FullName)" }
+              exit 1
+          }
+
       - name: Deploy to BC Sandbox
         env:
           AUTH_CONTEXT: ${{ secrets.BC_AUTH_CONTEXT }}
