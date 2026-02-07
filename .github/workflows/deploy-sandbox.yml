@@ -95,10 +95,14 @@ jobs:
         run: |
           Import-Module BcContainerHelper
 
-          # Convert JSON to hashtable (Publish-BcContainerApp requires hashtable, not PSCustomObject)
-          $jsonObj = $env:AUTH_CONTEXT | ConvertFrom-Json
-          $authContext = @{}
-          $jsonObj.PSObject.Properties | ForEach-Object { $authContext[$_.Name] = $_.Value }
+          # Parse the stored credentials
+          $creds = $env:AUTH_CONTEXT | ConvertFrom-Json
+
+          # Create proper auth context using New-BcAuthContext
+          $authContext = New-BcAuthContext `
+              -tenantID $creds.tenantId `
+              -clientID $creds.clientId `
+              -clientSecret (ConvertTo-SecureString -String $creds.clientSecret -AsPlainText -Force)
 
           # Get the .app file
           $appFile = Get-ChildItem -Path ".output" -Filter "*.app" | Select-Object -First 1
@@ -113,7 +117,7 @@ jobs:
           # Publish to BC Online
           Publish-BcContainerApp `
               -bcAuthContext $authContext `
-              -environment ${{ env.BC_ENVIRONMENT }} `
+              -environment "${{ env.BC_ENVIRONMENT }}" `
               -appFile $appFile.FullName `
               -syncMode ForceSync `
               -install `
