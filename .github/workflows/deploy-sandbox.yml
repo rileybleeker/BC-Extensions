@@ -7,11 +7,6 @@ on:
       - 'src/**'
       - 'app.json'
   workflow_dispatch:
-    inputs:
-      force:
-        description: 'Force deployment even if no changes'
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -23,16 +18,13 @@ defaults:
 
 env:
   BC_ENVIRONMENT: DEVRB
-  BC_ENVIRONMENT_TYPE: Sandbox
 
 jobs:
-  build:
-    name: Build for Deployment
+  build-and-deploy:
+    name: Build and Deploy to Sandbox
     runs-on: windows-latest
-    outputs:
-      artifact-name: ${{ steps.app-info.outputs.ARTIFACT_NAME }}
-      app-version: ${{ steps.app-info.outputs.APP_VERSION }}
-      app-name: ${{ steps.app-info.outputs.APP_NAME }}
+    environment:
+      name: sandbox-devrb
 
     steps:
       - name: Checkout repository
@@ -42,69 +34,95 @@ jobs:
         id: app-info
         run: |
           $appJson = Get-Content -Path "app.json" -Raw | ConvertFrom-Json
-          $artifactName = "deploy-$($appJson.name)_$($appJson.version)_${{ github.run_number }}"
           echo "APP_NAME=$($appJson.name)" >> $env:GITHUB_OUTPUT
           echo "APP_VERSION=$($appJson.version)" >> $env:GITHUB_OUTPUT
-          echo "ARTIFACT_NAME=$artifactName" >> $env:GITHUB_OUTPUT
+          echo "APP_PUBLISHER=$($appJson.publisher)" >> $env:GITHUB_OUTPUT
 
-      - name: Download BC Symbols
-        uses: microsoft/AL-Go-Actions/DownloadSymbols@v5.2
-        with:
-          shell: powershell
-          project: .
-          authContext: ${{ secrets.BC_AUTH_CONTEXT }}
+      - name: Install BcContainerHelper
+        run: |
+          Install-Module BcContainerHelper -Force -AllowClobber
+          Import-Module BcContainerHelper
+          Write-Host "BcContainerHelper version: $((Get-Module BcContainerHelper).Version)"
 
-      - name: Build AL Extension
-        uses: microsoft/AL-Go-Actions/Compile@v5.2
-        with:
-          shell: powershell
-          project: .
-          artifactsFolder: .output
+      - name: Build Extension
+        run: |
+          Import-Module BcContainerHelper
 
-      - name: Upload Build Artifact
+          # Get BC artifact URL
+          $artifactUrl = Get-BcArtifactUrl -type OnPrem -country us -select Latest
+          Write-Host "Using BC artifact: $artifactUrl"
+
+          # Download artifacts
+          Download-Artifacts -artifactUrl $artifactUrl -basePath $env:TEMP -includePlatform
+
+          # Find alc.exe
+          $alcPath = Get-ChildItem -Path $env:TEMP -Recurse -Filter "alc.exe" | Select-Object -First 1
+
+          if (-not $alcPath) {
+              Write-Host "::error::Could not find alc.exe"
+              exit 1
+          }
+
+          # Create output folder
+          New-Item -ItemType Directory -Path ".output" -Force | Out-Null
+
+          # Get app info
+          $appJson = Get-Content -Path "app.json" -Raw | ConvertFrom-Json
+          $appFileName = "$($appJson.publisher)_$($appJson.name)_$($appJson.version).app"
+
+          # Compile
+          Write-Host "Compiling AL extension..."
+          & $alcPath.FullName /project:$PWD /packagecachepath:.alpackages /out:.output\$appFileName
+
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::Compilation failed"
+              exit $LASTEXITCODE
+          }
+
+          Write-Host "Built: $appFileName"
+
+      - name: Deploy to BC Sandbox
+        env:
+          AUTH_CONTEXT: ${{ secrets.BC_AUTH_CONTEXT }}
+        run: |
+          Import-Module BcContainerHelper
+
+          $authContext = $env:AUTH_CONTEXT | ConvertFrom-Json
+
+          # Get the .app file
+          $appFile = Get-ChildItem -Path ".output" -Filter "*.app" | Select-Object -First 1
+
+          if (-not $appFile) {
+              Write-Host "::error::No .app file found"
+              exit 1
+          }
+
+          Write-Host "Deploying $($appFile.Name) to ${{ env.BC_ENVIRONMENT }}..."
+
+          # Publish to BC Online
+          Publish-BcContainerApp `
+              -bcAuthContext $authContext `
+              -environment ${{ env.BC_ENVIRONMENT }} `
+              -appFile $appFile.FullName `
+              -syncMode ForceSync `
+              -install `
+              -upgrade
+
+          Write-Host "Deployment complete!"
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.app-info.outputs.ARTIFACT_NAME }}
-          path: .output/**/*.app
+          name: deploy-${{ steps.app-info.outputs.APP_VERSION }}-${{ github.run_number }}
+          path: .output/*.app
           retention-days: 90
-
-  deploy:
-    name: Deploy to DEVRB Sandbox
-    runs-on: windows-latest
-    needs: build
-    environment:
-      name: sandbox-devrb
-      url: https://businesscentral.dynamics.com/${{ secrets.BC_TENANT_ID }}/${{ env.BC_ENVIRONMENT }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Build Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.build.outputs.artifact-name }}
-          path: .output/
-
-      - name: Publish to BC Sandbox
-        uses: microsoft/AL-Go-Actions/Publish@v5.2
-        with:
-          shell: powershell
-          project: .
-          authContext: ${{ secrets.BC_AUTH_CONTEXT }}
-          environment: ${{ env.BC_ENVIRONMENT }}
-          artifacts: .output
 
       - name: Deployment Summary
         run: |
           Write-Host "================================================"
           Write-Host "Deployment Complete"
           Write-Host "================================================"
-          Write-Host "App: ${{ needs.build.outputs.app-name }}"
-          Write-Host "Version: ${{ needs.build.outputs.app-version }}"
+          Write-Host "App: ${{ steps.app-info.outputs.APP_NAME }}"
+          Write-Host "Version: ${{ steps.app-info.outputs.APP_VERSION }}"
           Write-Host "Environment: ${{ env.BC_ENVIRONMENT }}"
-          Write-Host "Run: ${{ github.run_number }}"
-          Write-Host "Deployed by: ${{ github.actor }}"
           Write-Host "================================================"
-          Write-Host ""
-          Write-Host "Access BC: https://businesscentral.dynamics.com/${{ secrets.BC_TENANT_ID }}/${{ env.BC_ENVIRONMENT }}"
