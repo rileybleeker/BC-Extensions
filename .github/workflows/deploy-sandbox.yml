@@ -153,13 +153,11 @@ jobs:
               Write-Host "App ID: $($appJson.id)"
 
               # Publish to BC Online using Publish-PerTenantExtensionApps for SaaS
-              # Using -useDevEndpoint for sandbox deployment
               Publish-PerTenantExtensionApps `
                   -bcAuthContext $authContext `
                   -environment "${{ env.BC_ENVIRONMENT }}" `
                   -appFiles @($appFilePath) `
-                  -schemaSyncMode Force `
-                  -useDevEndpoint
+                  -schemaSyncMode Force
 
               Write-Host "Deployment complete!"
           }
