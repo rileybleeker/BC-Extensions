@@ -473,33 +473,67 @@ Formal tracking of vendor quality issues with root cause analysis and corrective
 ---
 
 ### 9. Purchase Suggestions with Vendor Ranking
-Smart vendor recommendations based on performance, price, and lead time scoring.
+Smart vendor recommendations based on performance, price, and lead time scoring with seamless BC integration.
 
 **Files:**
 - `PurchaseSuggestionTable.al` - Suggestion records with up to 3 ranked vendors
 - `VendorSelectorCodeunit.al` - Vendor scoring and ranking logic
-- `VendorRankingTable.al` - Temporary ranking results
-- `VendorComparisonPage.al` - Side-by-side vendor comparison
+- `VendorRankingTable.al` - Temporary ranking results for comparison
+- `VendorComparisonPage.al` - Side-by-side vendor comparison with selection
 - `PurchaseSuggestionManagerCodeunit.al` - Workflow management
 - `RequisitionWorksheetPageExt.al` - Req. Worksheet with vendor lookup integration
 - `PlanningWorksheetPageExt.al` - Planning Worksheet with vendor lookup integration
+- `RequisitionLineTableExt.al` - Extended fields for vendor recommendations
 
-**Scoring Weights:**
-| Factor | Weight |
-|--------|--------|
-| Quality (Accept Rate) | 30% |
-| Delivery (On-Time %) | 30% |
-| Lead Time | 25% |
-| Price | 15% |
+**Scoring Algorithm:**
 
-**Functionality:**
-- Automatically ranks vendors for each item
-- Compares up to 3 vendors with scores, costs, lead times
-- Generates recommendation reasons
-- Integrates with Planning Parameter Suggestions
-- Supports substitute item suggestions
-- Approval workflow before purchase order creation
-- **Vendor No. Lookup Integration**: Clicking the Vendor No. lookup in Requisition Worksheet or Planning Worksheet shows the Vendor Comparison page with ranked vendors instead of standard vendor list
+The overall vendor score is calculated as a weighted average:
+
+```
+Overall Score = (Quality × 0.30) + (Delivery × 0.30) + (Lead Time × 0.25) + (Price × 0.15)
+```
+
+| Factor | Weight | Source |
+|--------|--------|--------|
+| Quality (Accept Rate %) | 30% | Vendor.Quality Accept Rate % |
+| Delivery (On-Time %) | 30% | Vendor.On-Time Delivery % |
+| Lead Time Score | 25% | Calculated from Item Vendor lead time vs. required date |
+| Price Score | 25% | Calculated from vendor cost vs. best available cost |
+
+**Lead Time Score Calculation:**
+- If vendor can meet required date: Score = 100
+- If late: Score = 100 - (Days Late × 5), minimum 0
+
+**Price Score Calculation:**
+- If vendor has best price: Score = 100
+- If higher: Score = 100 - ((Premium %) × 100), minimum 0
+
+**Vendor No. Lookup Integration:**
+
+When users click the Vendor No. field lookup in Requisition Worksheet or Planning Worksheet:
+1. System retrieves all vendors for the item (from Item Vendor + Item default vendor)
+2. Each vendor is scored using the algorithm above
+3. Vendor Comparison page displays ranked vendors with:
+   - Overall Score (color-coded: Green ≥80, Yellow 60-79, Red <60)
+   - Performance Score, Unit Cost, Total Cost
+   - Lead Time Days, Expected Date, Can Meet Date indicator
+4. User selects vendor → field is populated automatically
+5. If no vendors found → falls back to standard BC vendor lookup
+
+**Worksheet Enhancements:**
+
+Both Requisition Worksheet and Planning Worksheet now include:
+- **Recommended Vendor No.** - Top-ranked vendor
+- **Recommended Vendor Score** - Score of recommended vendor
+- **Alt Vendor Available** - Indicator if alternatives exist
+- **Substitute Available** - Indicator if faster substitute item exists
+- **Recommended Lead Time** - Lead time in days
+
+**Actions:**
+- Enrich Selected Lines - Populate recommendation fields
+- Apply Recommended Vendor - Set Vendor No. to recommended
+- Compare Vendors - Open Vendor Comparison page
+- Show/Hide Recommendations - Toggle column visibility
 
 **Business Value:**
 - Consistent, data-driven vendor selection
@@ -507,6 +541,7 @@ Smart vendor recommendations based on performance, price, and lead time scoring.
 - Balances cost vs. quality vs. speed tradeoffs
 - Prevents ad-hoc vendor choices
 - Seamless integration into existing BC workflow
+- No training required - enhances familiar BC pages
 
 ---
 
@@ -525,6 +560,13 @@ Smart vendor recommendations based on performance, price, and lead time scoring.
 ---
 
 ## Version History
+
+### Version 1.0.0.10 (2026-02-07)
+- Added Vendor No. lookup integration to Requisition Worksheet and Planning Worksheet
+- Clicking Vendor No. lookup now shows Vendor Comparison page with ranked vendors
+- Added Planning Worksheet page extension (50153) with vendor recommendation features
+- Enhanced Vendor Comparison page with selection mode and keyboard shortcuts
+- Added comprehensive documentation for Purchase Suggestions module
 
 ### Version 1.2.0 (2026-02-04)
 - Added Planning Parameter Suggestions feature
