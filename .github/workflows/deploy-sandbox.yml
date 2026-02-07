@@ -49,7 +49,7 @@ jobs:
           Import-Module BcContainerHelper
 
           # Get BC artifact URL
-          $artifactUrl = Get-BcArtifactUrl -type OnPrem -country us -select Latest
+          $artifactUrl = Get-BcArtifactUrl -type Sandbox -country us -select Latest
           Write-Host "Using BC artifact: $artifactUrl"
 
           # Create compiler folder
