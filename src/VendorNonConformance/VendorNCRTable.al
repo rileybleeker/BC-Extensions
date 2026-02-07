@@ -218,12 +218,12 @@ table 50130 "Vendor NCR"
     trigger OnInsert()
     var
         MfgSetup: Record "Manufacturing Setup";
-        NoSeriesMgt: Codeunit NoSeriesManagement;
+        NoSeries: Codeunit "No. Series";
     begin
         if "NCR No." = '' then begin
             MfgSetup.Get();
             MfgSetup.TestField("NCR No. Series");
-            "NCR No." := NoSeriesMgt.GetNextNo(MfgSetup."NCR No. Series", Today, true);
+            "NCR No." := NoSeries.GetNextNo(MfgSetup."NCR No. Series");
         end;
 
         "Created By" := CopyStr(UserId, 1, MaxStrLen("Created By"));
