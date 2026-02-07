@@ -146,12 +146,19 @@ jobs:
           Write-Host "Tenant ID: $($creds.tenantId)"
 
           try {
+              # Get app info for logging
+              $appJson = Get-Content -Path "app.json" -Raw | ConvertFrom-Json
+              Write-Host "App: $($appJson.name) v$($appJson.version)"
+              Write-Host "App ID: $($appJson.id)"
+
               # Publish to BC Online using Publish-PerTenantExtensionApps for SaaS
+              # Using -useDevEndpoint for sandbox deployment
               Publish-PerTenantExtensionApps `
                   -bcAuthContext $authContext `
                   -environment "${{ env.BC_ENVIRONMENT }}" `
                   -appFiles @($appFilePath) `
-                  -schemaSyncMode Force
+                  -schemaSyncMode Force `
+                  -useDevEndpoint
 
               Write-Host "Deployment complete!"
           }
