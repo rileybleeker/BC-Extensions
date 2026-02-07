@@ -147,12 +147,24 @@ jobs:
               throw
           }
 
+      - name: Debug - List output folder
+        run: |
+          Write-Host "Current directory: $PWD"
+          Write-Host "Contents of .output folder:"
+          if (Test-Path ".output") {
+              Get-ChildItem ".output" -Recurse
+          } else {
+              Write-Host "::error::.output folder does not exist!"
+              exit 1
+          }
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: deploy-${{ steps.app-info.outputs.APP_VERSION }}-${{ github.run_number }}
-          path: .output/*.app
+          path: .output/
           retention-days: 90
+          if-no-files-found: error
 
       - name: Deployment Summary
         run: |
