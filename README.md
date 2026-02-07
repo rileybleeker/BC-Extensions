@@ -334,7 +334,8 @@ For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md).
 | Page | 50151 | Purchase Suggestion Card | Suggestion details |
 | Page | 50152 | Vendor Comparison | Side-by-side comparison |
 | Page Extension | 50150 | Req Worksheet Vendor Ext | Vendor lookup integration |
-| Page Extension | 50151 | Planning Worksheet Vendor Ext | Vendor lookup integration |
+| Page Extension | 50151 | Planning Sugg Card Purch Ext | Purchase suggestion from planning |
+| Page Extension | 50153 | Planning Worksheet Vendor Ext | Vendor lookup integration |
 | Codeunit | 50150 | Purchase Suggestion Manager | Workflow management |
 | Codeunit | 50151 | Vendor Selector | Vendor scoring/ranking |
 | Enum | 50150 | Purchase Suggestion Status | Pending/Approved/Rejected/Converted |

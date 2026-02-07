@@ -270,7 +270,7 @@ When users click the lookup button (dropdown arrow or F4) on the **Vendor No.** 
 | Page ID | Page Name | Extension ID |
 |---------|-----------|--------------|
 | "Req. Worksheet" | Requisition Worksheet | 50150 |
-| "Planning Worksheet" | Planning Worksheet | 50151 |
+| "Planning Worksheet" | Planning Worksheet | 50153 |
 
 ### 5.3 User Experience Flow
 
