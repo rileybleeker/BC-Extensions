@@ -1,5 +1,21 @@
 codeunit 50121 "Lead Time Variance Tracker"
 {
+    var
+        LastEntryNo: Integer;
+
+    local procedure GetNextEntryNo(): Integer
+    var
+        LeadTimeVariance: Record "Lead Time Variance Entry";
+    begin
+        if LastEntryNo = 0 then begin
+            LeadTimeVariance.Reset();
+            if LeadTimeVariance.FindLast() then
+                LastEntryNo := LeadTimeVariance."Entry No.";
+        end;
+        LastEntryNo += 1;
+        exit(LastEntryNo);
+    end;
+
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Purch.-Post", 'OnAfterPurchRcptLineInsert', '', false, false)]
     local procedure OnAfterPurchRcptLineInsert(PurchaseLine: Record "Purchase Line"; var PurchRcptLine: Record "Purch. Rcpt. Line"; CommitIsSupressed: Boolean)
     begin
@@ -21,6 +37,7 @@ codeunit 50121 "Lead Time Variance Tracker"
             exit;
 
         LeadTimeVariance.Init();
+        LeadTimeVariance."Entry No." := GetNextEntryNo();
         LeadTimeVariance."Vendor No." := PurchRcptLine."Buy-from Vendor No.";
         LeadTimeVariance."Item No." := PurchRcptLine."No.";
         LeadTimeVariance."Variant Code" := PurchRcptLine."Variant Code";
@@ -132,6 +149,7 @@ codeunit 50121 "Lead Time Variance Tracker"
                     // Get the receipt header
                     if PurchRcptHeader.Get(PurchRcptLine."Document No.") then begin
                         LeadTimeVariance.Init();
+                        LeadTimeVariance."Entry No." := GetNextEntryNo();
                         LeadTimeVariance."Vendor No." := PurchRcptLine."Buy-from Vendor No.";
                         LeadTimeVariance."Item No." := PurchRcptLine."No.";
                         LeadTimeVariance."Variant Code" := PurchRcptLine."Variant Code";

@@ -103,10 +103,27 @@ codeunit 50130 "Vendor NCR Management"
     procedure GetNCRCountForVendor(VendorNo: Code[20]; StartDate: Date; EndDate: Date): Integer
     var
         VendorNCR: Record "Vendor NCR";
+        PurchRcptHeader: Record "Purch. Rcpt. Header";
+        NCRCount: Integer;
     begin
+        // Match NCRs by the RECEIPT posting date, not NCR creation date
         VendorNCR.SetRange("Vendor No.", VendorNo);
-        VendorNCR.SetRange("NCR Date", StartDate, EndDate);
-        exit(VendorNCR.Count());
+        if VendorNCR.FindSet() then
+            repeat
+                if VendorNCR."Posted Receipt No." <> '' then begin
+                    if PurchRcptHeader.Get(VendorNCR."Posted Receipt No.") then begin
+                        if (PurchRcptHeader."Posting Date" >= StartDate) and
+                           (PurchRcptHeader."Posting Date" <= EndDate) then
+                            NCRCount += 1;
+                    end;
+                end else begin
+                    // Fallback to NCR Date if no receipt linked
+                    if (VendorNCR."NCR Date" >= StartDate) and
+                       (VendorNCR."NCR Date" <= EndDate) then
+                        NCRCount += 1;
+                end;
+            until VendorNCR.Next() = 0;
+        exit(NCRCount);
     end;
 
     procedure GetNCRCountForVendorItem(VendorNo: Code[20]; ItemNo: Code[20]; StartDate: Date; EndDate: Date): Integer
@@ -132,11 +149,28 @@ codeunit 50130 "Vendor NCR Management"
     procedure GetTotalAffectedQty(VendorNo: Code[20]; StartDate: Date; EndDate: Date): Decimal
     var
         VendorNCR: Record "Vendor NCR";
+        PurchRcptHeader: Record "Purch. Rcpt. Header";
+        TotalAffected: Decimal;
     begin
+        // Match NCRs by the RECEIPT posting date, not NCR creation date
+        // This ensures NCR affected qty is compared against the same period's receipts
         VendorNCR.SetRange("Vendor No.", VendorNo);
-        VendorNCR.SetRange("NCR Date", StartDate, EndDate);
-        VendorNCR.CalcSums("Affected Qty");
-        exit(VendorNCR."Affected Qty");
+        if VendorNCR.FindSet() then
+            repeat
+                if VendorNCR."Posted Receipt No." <> '' then begin
+                    if PurchRcptHeader.Get(VendorNCR."Posted Receipt No.") then begin
+                        if (PurchRcptHeader."Posting Date" >= StartDate) and
+                           (PurchRcptHeader."Posting Date" <= EndDate) then
+                            TotalAffected += VendorNCR."Affected Qty";
+                    end;
+                end else begin
+                    // Fallback to NCR Date if no receipt linked
+                    if (VendorNCR."NCR Date" >= StartDate) and
+                       (VendorNCR."NCR Date" <= EndDate) then
+                        TotalAffected += VendorNCR."Affected Qty";
+                end;
+            until VendorNCR.Next() = 0;
+        exit(TotalAffected);
     end;
 
     procedure GetOpenNCRCount(VendorNo: Code[20]): Integer

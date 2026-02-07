@@ -208,15 +208,18 @@ codeunit 50120 "Vendor Performance Calculator"
         TotalQtyReceived: Decimal;
         QtyRejected: Decimal;
         NCRCount: Integer;
+        ReceiptLineCount: Integer;
     begin
         // Get total quantity received from purchase receipt lines
         PurchRcptLine.SetRange("Buy-from Vendor No.", VendorPerf."Vendor No.");
         PurchRcptLine.SetRange("Posting Date", VendorPerf."Period Start Date", VendorPerf."Period End Date");
         PurchRcptLine.SetFilter(Type, '%1', PurchRcptLine.Type::Item);
+        ReceiptLineCount := PurchRcptLine.Count();
         PurchRcptLine.CalcSums(Quantity);
         TotalQtyReceived := PurchRcptLine.Quantity;
 
-        // Get NCR count and rejected quantity using CalcSums (optimized)
+        // Get NCR count and rejected quantity
+        // NCRs are matched by receipt posting date (not NCR creation date)
         NCRCount := VendorNCRMgt.GetNCRCountForVendor(VendorPerf."Vendor No.", VendorPerf."Period Start Date", VendorPerf."Period End Date");
         QtyRejected := VendorNCRMgt.GetTotalAffectedQty(VendorPerf."Vendor No.", VendorPerf."Period Start Date", VendorPerf."Period End Date");
 
@@ -233,6 +236,11 @@ codeunit 50120 "Vendor Performance Calculator"
         end;
 
         VendorPerf."NCR Count" := NCRCount;
+
+        // Store diagnostic info in calculation notes
+        VendorPerf."Calculation Notes" := StrSubstNo(
+            'Quality: %1 receipt lines, Total Qty=%2, NCRs=%3, Rejected Qty=%4',
+            ReceiptLineCount, TotalQtyReceived, NCRCount, QtyRejected);
     end;
 
     local procedure CalculatePricingMetrics(var VendorPerf: Record "Vendor Performance")

@@ -10,7 +10,6 @@ table 50121 "Lead Time Variance Entry"
         field(1; "Entry No."; Integer)
         {
             Caption = 'Entry No.';
-            AutoIncrement = true;
         }
         field(2; "Vendor No."; Code[20])
         {

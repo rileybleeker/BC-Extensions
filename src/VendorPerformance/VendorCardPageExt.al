@@ -112,8 +112,8 @@ pageextension 50120 "Vendor Card Perf Ext" extends "Vendor Card"
             action(CalculateHistoricalPerformance)
             {
                 ApplicationArea = All;
-                Caption = 'Calculate Historical Performance';
-                ToolTip = 'Calculate the vendor''s historical performance for the past 12 months.';
+                Caption = 'Calculate Historical (Monthly)';
+                ToolTip = 'Calculate the vendor''s historical performance month-by-month.';
                 Image = History;
 
                 trigger OnAction()
@@ -144,7 +144,41 @@ pageextension 50120 "Vendor Card Perf Ext" extends "Vendor Card"
                     end;
 
                     CurrPage.Update(false);
-                    Message('Historical performance calculated for %1 months.', MfgSetup."Perf Calc Period Months");
+                    Message('Historical performance calculated for %1 months (month-by-month).', MfgSetup."Perf Calc Period Months");
+                end;
+            }
+            action(CalculateFullPeriod)
+            {
+                ApplicationArea = All;
+                Caption = 'Calculate Full Period';
+                ToolTip = 'Calculate the vendor''s performance across the ENTIRE historical period as one aggregated result.';
+                Image = Calculate;
+                Promoted = true;
+                PromotedCategory = Process;
+
+                trigger OnAction()
+                var
+                    VendorPerfCalc: Codeunit "Vendor Performance Calculator";
+                    LeadTimeTracker: Codeunit "Lead Time Variance Tracker";
+                    MfgSetup: Record "Manufacturing Setup";
+                    StartDate: Date;
+                    EndDate: Date;
+                begin
+                    MfgSetup.Get();
+
+                    // Calculate dates for the full period
+                    StartDate := CalcDate('<-' + Format(MfgSetup."Perf Calc Period Months") + 'M>', WorkDate());
+                    EndDate := WorkDate();
+
+                    // First, create historical lead time variance entries
+                    LeadTimeTracker.CreateEntriesFromHistory(Rec."No.", StartDate, EndDate);
+
+                    // Calculate performance for the FULL period as one record
+                    VendorPerfCalc.CalculateVendorPerformance(Rec."No.", StartDate, EndDate);
+
+                    CurrPage.Update(false);
+                    Message('Full period performance calculated for %1 to %2 (%3 months).',
+                        StartDate, EndDate, MfgSetup."Perf Calc Period Months");
                 end;
             }
         }
