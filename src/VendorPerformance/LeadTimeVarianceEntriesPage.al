@@ -142,8 +142,6 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'View Vendor';
                 ToolTip = 'Open the vendor card.';
                 Image = Vendor;
-                Promoted = true;
-                PromotedCategory = Category4;
                 RunObject = page "Vendor Card";
                 RunPageLink = "No." = field("Vendor No.");
             }
@@ -153,8 +151,6 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'View Item';
                 ToolTip = 'Open the item card.';
                 Image = Item;
-                Promoted = true;
-                PromotedCategory = Category4;
                 RunObject = page "Item Card";
                 RunPageLink = "No." = field("Item No.");
             }
@@ -164,8 +160,6 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'View Posted Receipt';
                 ToolTip = 'Open the posted purchase receipt.';
                 Image = PostedReceipt;
-                Promoted = true;
-                PromotedCategory = Category4;
 
                 trigger OnAction()
                 var
@@ -181,8 +175,6 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'Vendor Performance';
                 ToolTip = 'View performance history for this vendor.';
                 Image = Statistics;
-                Promoted = true;
-                PromotedCategory = Category4;
 
                 trigger OnAction()
                 var
@@ -223,9 +215,6 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'Delete Selected';
                 ToolTip = 'Delete the selected lead time variance entries.';
                 Image = Delete;
-                Promoted = true;
-                PromotedCategory = Process;
-                PromotedIsBig = true;
 
                 trigger OnAction()
                 var
@@ -244,8 +233,6 @@ page 50123 "Lead Time Variance Entries"
                 Caption = 'Delete All for Vendor';
                 ToolTip = 'Delete all lead time variance entries for the current vendor.';
                 Image = Delete;
-                Promoted = true;
-                PromotedCategory = Process;
 
                 trigger OnAction()
                 var
@@ -260,6 +247,26 @@ page 50123 "Lead Time Variance Entries"
                     CurrPage.Update(false);
                     Message('Entries deleted for vendor %1.', Rec."Vendor No.");
                 end;
+            }
+        }
+        area(Promoted)
+        {
+            group(Category_Process)
+            {
+                Caption = 'Process';
+
+                actionref(DeleteSelected_Promoted; DeleteSelected) { }
+                actionref(DeleteAllForVendor_Promoted; DeleteAllForVendor) { }
+                actionref(CreateHistoricalEntries_Promoted; CreateHistoricalEntries) { }
+            }
+            group(Category_Navigate)
+            {
+                Caption = 'Navigate';
+
+                actionref(ViewVendor_Promoted; ViewVendor) { }
+                actionref(ViewItem_Promoted; ViewItem) { }
+                actionref(ViewPostedReceipt_Promoted; ViewPostedReceipt) { }
+                actionref(ViewVendorPerformance_Promoted; ViewVendorPerformance) { }
             }
         }
     }
