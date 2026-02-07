@@ -104,7 +104,8 @@ jobs:
           Import-Module BcContainerHelper
           Write-Host "BcContainerHelper version: $((Get-Module BcContainerHelper).Version)"
 
-      - name: Create Compiler Folder and Compile
+      - name: Setup Compiler and Symbols
+        id: setup
         run: |
           Import-Module BcContainerHelper
 
@@ -112,35 +113,65 @@ jobs:
           $artifactUrl = Get-BcArtifactUrl -type OnPrem -country us -select Latest
           Write-Host "Using BC artifact: $artifactUrl"
 
-          # Create compiler folder using BcContainerHelper
+          # Create compiler folder
           $compilerFolder = New-BcCompilerFolder -artifactUrl $artifactUrl -cacheFolder (Join-Path $env:TEMP "cache")
           Write-Host "Compiler folder: $compilerFolder"
 
-          # Find alc.exe in the compiler folder
+          # Find alc.exe
           $alcPath = Join-Path $compilerFolder "alc.exe"
           if (-not (Test-Path $alcPath)) {
-              # Try to find it recursively
               $alcFile = Get-ChildItem -Path $compilerFolder -Recurse -Filter "alc.exe" | Select-Object -First 1
               if ($alcFile) {
                   $alcPath = $alcFile.FullName
               } else {
-                  Write-Host "::error::Could not find alc.exe in compiler folder"
-                  Write-Host "Compiler folder contents:"
-                  Get-ChildItem -Path $compilerFolder -Recurse | Select-Object FullName
+                  Write-Host "::error::Could not find alc.exe"
                   exit 1
               }
           }
-
           Write-Host "Found AL compiler: $alcPath"
+          echo "ALC_PATH=$alcPath" >> $env:GITHUB_OUTPUT
 
-          # Verify .alpackages exists
-          $symbolsPath = ".alpackages"
-          if (-not (Test-Path $symbolsPath)) {
-              Write-Host "::error::.alpackages folder not found. Ensure symbols are committed or downloaded."
-              exit 1
+          # Download BC symbols from artifacts
+          $symbolsFolder = Join-Path $env:TEMP "symbols"
+          New-Item -ItemType Directory -Path $symbolsFolder -Force | Out-Null
+
+          Write-Host "Downloading symbols from BC artifacts..."
+          $artifactPaths = Download-Artifacts -artifactUrl $artifactUrl -basePath (Join-Path $env:TEMP "artifacts")
+
+          # Find and copy symbol files (.app files from Applications folder)
+          $appFolder = Get-ChildItem -Path (Join-Path $env:TEMP "artifacts") -Directory -Recurse |
+              Where-Object { $_.Name -eq "Applications" } |
+              Select-Object -First 1
+
+          if ($appFolder) {
+              $symbolFiles = Get-ChildItem -Path $appFolder.FullName -Filter "*.app" -Recurse
+              Write-Host "Found $($symbolFiles.Count) symbol files"
+              foreach ($file in $symbolFiles) {
+                  Copy-Item $file.FullName -Destination $symbolsFolder
+                  Write-Host "  Copied: $($file.Name)"
+              }
+          } else {
+              Write-Host "Applications folder not found, searching for .app files..."
+              $symbolFiles = Get-ChildItem -Path (Join-Path $env:TEMP "artifacts") -Filter "*.app" -Recurse |
+                  Where-Object { $_.Name -like "Microsoft_*" }
+              foreach ($file in $symbolFiles) {
+                  Copy-Item $file.FullName -Destination $symbolsFolder
+                  Write-Host "  Copied: $($file.Name)"
+              }
           }
 
-          Write-Host "Using symbols from: $symbolsPath"
+          echo "SYMBOLS_PATH=$symbolsFolder" >> $env:GITHUB_OUTPUT
+
+      - name: Compile AL Extension
+        run: |
+          $alcPath = "${{ steps.setup.outputs.ALC_PATH }}"
+          $symbolsPath = "${{ steps.setup.outputs.SYMBOLS_PATH }}"
+
+          Write-Host "Compiler: $alcPath"
+          Write-Host "Symbols: $symbolsPath"
+
+          # List symbols
+          Write-Host "Available symbols:"
           Get-ChildItem $symbolsPath -Filter "*.app" | ForEach-Object { Write-Host "  - $($_.Name)" }
 
           # Create output folder
@@ -153,8 +184,6 @@ jobs:
 
           # Compile
           Write-Host "Compiling AL extension..."
-          Write-Host "Command: $alcPath /project:$PWD /packagecachepath:$symbolsPath /out:$outputFolder\$appFileName"
-
           & $alcPath /project:"$PWD" /packagecachepath:"$symbolsPath" /out:"$outputFolder\$appFileName"
 
           if ($LASTEXITCODE -ne 0) {
