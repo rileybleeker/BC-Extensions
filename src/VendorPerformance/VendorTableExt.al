@@ -54,5 +54,14 @@ tableextension 50120 "Vendor Performance Ext" extends Vendor
             DataClassification = CustomerContent;
             Editable = false;
         }
+        field(50127; "Lead Time Reliability %"; Decimal)
+        {
+            Caption = 'Lead Time Reliability %';
+            DataClassification = CustomerContent;
+            Editable = false;
+            DecimalPlaces = 0 : 2;
+            MinValue = 0;
+            MaxValue = 100;
+        }
     }
 }

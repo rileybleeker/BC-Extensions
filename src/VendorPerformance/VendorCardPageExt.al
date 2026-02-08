@@ -52,6 +52,12 @@ pageextension 50120 "Vendor Card Perf Ext" extends "Vendor Card"
                     ToolTip = 'Average variance from promised lead time (days).';
                     Editable = false;
                 }
+                field("Lead Time Reliability %"; Rec."Lead Time Reliability %")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Percentage of deliveries within the lead time variance tolerance.';
+                    Editable = false;
+                }
             }
         }
     }

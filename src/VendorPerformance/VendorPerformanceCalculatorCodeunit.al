@@ -43,6 +43,7 @@ codeunit 50120 "Vendor Performance Calculator"
         Vendor."On-Time Delivery %" := VendorPerf."On-Time Delivery %";
         Vendor."Quality Accept Rate %" := VendorPerf."Quality Accept Rate %";
         Vendor."Lead Time Variance Days" := VendorPerf."Lead Time Variance Days";
+        Vendor."Lead Time Reliability %" := VendorPerf."Lead Time Reliability %";
         Vendor."Score Trend" := VendorPerf."Score Trend";
         Vendor."Last Performance Calc" := VendorPerf."Last Calculated";
         Vendor.Modify(true);
@@ -145,7 +146,7 @@ codeunit 50120 "Vendor Performance Calculator"
         Count: Integer;
         WithinToleranceCount: Integer;
         TolerancePct: Decimal;
-        AvgPromised: Decimal;
+        VariancePct: Decimal;
     begin
         MfgSetup.Get();
         TolerancePct := MfgSetup."Lead Time Variance Tolerance %";
@@ -167,8 +168,7 @@ codeunit 50120 "Vendor Performance Calculator"
             until LeadTimeVariance.Next() = 0;
 
         if Count > 0 then begin
-            AvgPromised := TotalPromisedDays / Count;
-            VendorPerf."Avg Promised Lead Time Days" := Round(AvgPromised, 0.1);
+            VendorPerf."Avg Promised Lead Time Days" := Round(TotalPromisedDays / Count, 0.1);
             VendorPerf."Avg Actual Lead Time Days" := Round(TotalActualDays / Count, 0.1);
             VendorPerf."Lead Time Variance Days" := VendorPerf."Avg Actual Lead Time Days" - VendorPerf."Avg Promised Lead Time Days";
             AvgVariance := TotalVarianceDays / Count;
@@ -178,11 +178,14 @@ codeunit 50120 "Vendor Performance Calculator"
                 repeat
                     TotalVarianceSquared += Power(TempLeadTimeData."Variance Days" - AvgVariance, 2);
 
-                    // Check if within tolerance
-                    if AvgPromised > 0 then begin
-                        if Abs(TempLeadTimeData."Variance Days" / AvgPromised * 100) <= TolerancePct then
-                            WithinToleranceCount += 1;
-                    end else
+                    // Check if within tolerance using INDIVIDUAL entry's promised lead time
+                    // Treat 0 lead time as 1 day to avoid division by zero
+                    if TempLeadTimeData."Promised Lead Time Days" > 0 then
+                        VariancePct := Abs(TempLeadTimeData."Variance Days") / TempLeadTimeData."Promised Lead Time Days" * 100
+                    else
+                        VariancePct := Abs(TempLeadTimeData."Variance Days") / 1 * 100; // Treat 0 as 1 day
+
+                    if VariancePct <= TolerancePct then
                         WithinToleranceCount += 1;
                 until TempLeadTimeData.Next() = 0;
 
@@ -268,19 +271,21 @@ codeunit 50120 "Vendor Performance Calculator"
                 else
                     ExpectedCost := ActualCost;  // No standard cost, assume actual is expected
 
-                if ExpectedCost > 0 then
-                    TotalVariance += Abs((ActualCost - ExpectedCost) / ExpectedCost * 100);
+                // Only penalize when actual cost exceeds expected cost (reward lower prices)
+                if (ExpectedCost > 0) and (ActualCost > ExpectedCost) then
+                    TotalVariance += (ActualCost - ExpectedCost) / ExpectedCost * 100;
             until PurchInvLine.Next() = 0;
 
         if TotalLines > 0 then begin
             VendorPerf."Avg Price Variance %" := Round(TotalVariance / TotalLines, 0.01);
-            // Price stability = 100 - average variance (capped at 0-100)
-            VendorPerf."Price Stability Score" := Round(100 - VendorPerf."Avg Price Variance %", 0.01);
-            if VendorPerf."Price Stability Score" < 0 then
-                VendorPerf."Price Stability Score" := 0;
+            // Price competitiveness = 100 - average variance (capped at 0-100)
+            // Only penalizes prices above expected cost; lower prices get full score
+            VendorPerf."Price Competitiveness Score" := Round(100 - VendorPerf."Avg Price Variance %", 0.01);
+            if VendorPerf."Price Competitiveness Score" < 0 then
+                VendorPerf."Price Competitiveness Score" := 0;
         end else begin
             VendorPerf."Avg Price Variance %" := 0;
-            VendorPerf."Price Stability Score" := 100;  // No data = assume stable
+            VendorPerf."Price Competitiveness Score" := 100;  // No data = assume competitive
         end;
     end;
 
@@ -297,7 +302,7 @@ codeunit 50120 "Vendor Performance Calculator"
         TotalWeight := MfgSetup."On-Time Delivery Weight" +
                        MfgSetup."Quality Weight" +
                        MfgSetup."Lead Time Reliability Weight" +
-                       MfgSetup."Price Stability Weight";
+                       MfgSetup."Price Competitiveness Weight";
 
         if TotalWeight = 0 then
             TotalWeight := 100;  // Default weights sum to 100
@@ -305,7 +310,7 @@ codeunit 50120 "Vendor Performance Calculator"
         WeightedScore += VendorPerf."On-Time Delivery %" * (MfgSetup."On-Time Delivery Weight" / TotalWeight);
         WeightedScore += VendorPerf."Quality Accept Rate %" * (MfgSetup."Quality Weight" / TotalWeight);
         WeightedScore += VendorPerf."Lead Time Reliability %" * (MfgSetup."Lead Time Reliability Weight" / TotalWeight);
-        WeightedScore += VendorPerf."Price Stability Score" * (MfgSetup."Price Stability Weight" / TotalWeight);
+        WeightedScore += VendorPerf."Price Competitiveness Score" * (MfgSetup."Price Competitiveness Weight" / TotalWeight);
 
         VendorPerf."Overall Score" := Round(WeightedScore, 0.01);
 
@@ -314,7 +319,7 @@ codeunit 50120 "Vendor Performance Calculator"
             MfgSetup."On-Time Delivery Weight",
             MfgSetup."Quality Weight",
             MfgSetup."Lead Time Reliability Weight",
-            MfgSetup."Price Stability Weight"
+            MfgSetup."Price Competitiveness Weight"
         );
     end;
 

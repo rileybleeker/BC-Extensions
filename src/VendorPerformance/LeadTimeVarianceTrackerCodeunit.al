@@ -77,20 +77,29 @@ codeunit 50121 "Lead Time Variance Tracker"
         Item: Record Item;
         ItemVendor: Record "Item Vendor";
         SKU: Record "Stockkeeping Unit";
+        Vendor: Record Vendor;
         LeadTimeFormula: DateFormula;
     begin
-        // Priority: SKU > Item Vendor > Item
-        if SKU.Get(PurchaseLine."Location Code", PurchaseLine."No.", PurchaseLine."Variant Code") then
-            if Format(SKU."Lead Time Calculation") <> '' then
-                exit(SKU."Lead Time Calculation");
-
+        // Priority: Item Vendor > SKU > Item > Vendor
+        // 1. Item Vendor Catalog - most specific (item + vendor combination)
         if ItemVendor.Get(PurchaseLine."Buy-from Vendor No.", PurchaseLine."No.", PurchaseLine."Variant Code") then
             if Format(ItemVendor."Lead Time Calculation") <> '' then
                 exit(ItemVendor."Lead Time Calculation");
 
+        // 2. SKU - location/variant specific
+        if SKU.Get(PurchaseLine."Location Code", PurchaseLine."No.", PurchaseLine."Variant Code") then
+            if Format(SKU."Lead Time Calculation") <> '' then
+                exit(SKU."Lead Time Calculation");
+
+        // 3. Item Card - default for item
         if Item.Get(PurchaseLine."No.") then
             if Format(Item."Lead Time Calculation") <> '' then
                 exit(Item."Lead Time Calculation");
+
+        // 4. Vendor Card - general vendor lead time
+        if Vendor.Get(PurchaseLine."Buy-from Vendor No.") then
+            if Format(Vendor."Lead Time Calculation") <> '' then
+                exit(Vendor."Lead Time Calculation");
 
         // Default: 7 days
         Evaluate(LeadTimeFormula, '<7D>');
@@ -124,6 +133,11 @@ codeunit 50121 "Lead Time Variance Tracker"
         ProgressDialog: Dialog;
         Counter: Integer;
     begin
+        // Delete existing entries for this vendor and date range before recreating
+        LeadTimeVariance.SetRange("Vendor No.", VendorNo);
+        LeadTimeVariance.SetRange("Actual Receipt Date", StartDate, EndDate);
+        LeadTimeVariance.DeleteAll();
+
         // Create lead time variance entries from historical receipt data
         // This is useful for initial setup when you want to populate historical data
 
@@ -141,29 +155,23 @@ codeunit 50121 "Lead Time Variance Tracker"
                 if GuiAllowed then
                     ProgressDialog.Update(1, Counter);
 
-                // Check if entry already exists
-                LeadTimeVariance.SetRange("Posted Receipt No.", PurchRcptLine."Document No.");
-                LeadTimeVariance.SetRange("Purchase Order No.", PurchRcptLine."Order No.");
-                LeadTimeVariance.SetRange("Purchase Order Line No.", PurchRcptLine."Order Line No.");
-                if LeadTimeVariance.IsEmpty then begin
-                    // Get the receipt header
-                    if PurchRcptHeader.Get(PurchRcptLine."Document No.") then begin
-                        LeadTimeVariance.Init();
-                        LeadTimeVariance."Entry No." := GetNextEntryNo();
-                        LeadTimeVariance."Vendor No." := PurchRcptLine."Buy-from Vendor No.";
-                        LeadTimeVariance."Item No." := PurchRcptLine."No.";
-                        LeadTimeVariance."Variant Code" := PurchRcptLine."Variant Code";
-                        LeadTimeVariance."Purchase Order No." := PurchRcptLine."Order No.";
-                        LeadTimeVariance."Purchase Order Line No." := PurchRcptLine."Order Line No.";
-                        LeadTimeVariance."Posted Receipt No." := PurchRcptLine."Document No.";
-                        LeadTimeVariance."Order Date" := PurchRcptHeader."Order Date";
-                        LeadTimeVariance."Promised Receipt Date" := GetHistoricalPromisedDate(PurchRcptLine, PurchRcptHeader);
-                        LeadTimeVariance."Actual Receipt Date" := PurchRcptLine."Posting Date";
-                        LeadTimeVariance."Receipt Qty" := PurchRcptLine.Quantity;
-                        LeadTimeVariance."Unit of Measure Code" := PurchRcptLine."Unit of Measure Code";
-                        LeadTimeVariance."Location Code" := PurchRcptLine."Location Code";
-                        LeadTimeVariance.Insert(true);
-                    end;
+                // Get the receipt header
+                if PurchRcptHeader.Get(PurchRcptLine."Document No.") then begin
+                    LeadTimeVariance.Init();
+                    LeadTimeVariance."Entry No." := GetNextEntryNo();
+                    LeadTimeVariance."Vendor No." := PurchRcptLine."Buy-from Vendor No.";
+                    LeadTimeVariance."Item No." := PurchRcptLine."No.";
+                    LeadTimeVariance."Variant Code" := PurchRcptLine."Variant Code";
+                    LeadTimeVariance."Purchase Order No." := PurchRcptLine."Order No.";
+                    LeadTimeVariance."Purchase Order Line No." := PurchRcptLine."Order Line No.";
+                    LeadTimeVariance."Posted Receipt No." := PurchRcptLine."Document No.";
+                    LeadTimeVariance."Order Date" := PurchRcptHeader."Order Date";
+                    LeadTimeVariance."Promised Receipt Date" := GetHistoricalPromisedDate(PurchRcptLine, PurchRcptHeader);
+                    LeadTimeVariance."Actual Receipt Date" := PurchRcptLine."Posting Date";
+                    LeadTimeVariance."Receipt Qty" := PurchRcptLine.Quantity;
+                    LeadTimeVariance."Unit of Measure Code" := PurchRcptLine."Unit of Measure Code";
+                    LeadTimeVariance."Location Code" := PurchRcptLine."Location Code";
+                    LeadTimeVariance.Insert(true);
                 end;
             until PurchRcptLine.Next() = 0;
 
@@ -175,24 +183,40 @@ codeunit 50121 "Lead Time Variance Tracker"
     var
         Item: Record Item;
         ItemVendor: Record "Item Vendor";
+        SKU: Record "Stockkeeping Unit";
+        Vendor: Record Vendor;
         LeadTimeFormula: DateFormula;
     begin
-        // For historical data, we use Expected Receipt Date from receipt if available
+        // Priority: Promised Receipt Date > Expected Receipt Date > Calculated
+        if PurchRcptLine."Promised Receipt Date" <> 0D then
+            exit(PurchRcptLine."Promised Receipt Date");
+
         if PurchRcptLine."Expected Receipt Date" <> 0D then
             exit(PurchRcptLine."Expected Receipt Date");
 
         if PurchRcptHeader."Expected Receipt Date" <> 0D then
             exit(PurchRcptHeader."Expected Receipt Date");
 
-        // Fallback: calculate from order date using current lead time
+        // Fallback: calculate from order date using lead time priority
+        // 1. Item Vendor Catalog - most specific (item + vendor combination)
         if ItemVendor.Get(PurchRcptLine."Buy-from Vendor No.", PurchRcptLine."No.", PurchRcptLine."Variant Code") then
-            if Format(ItemVendor."Lead Time Calculation") <> '' then begin
+            if Format(ItemVendor."Lead Time Calculation") <> '' then
                 exit(CalcDate(ItemVendor."Lead Time Calculation", PurchRcptHeader."Order Date"));
-            end;
 
+        // 2. SKU - location/variant specific
+        if SKU.Get(PurchRcptLine."Location Code", PurchRcptLine."No.", PurchRcptLine."Variant Code") then
+            if Format(SKU."Lead Time Calculation") <> '' then
+                exit(CalcDate(SKU."Lead Time Calculation", PurchRcptHeader."Order Date"));
+
+        // 3. Item Card - default for item
         if Item.Get(PurchRcptLine."No.") then
             if Format(Item."Lead Time Calculation") <> '' then
                 exit(CalcDate(Item."Lead Time Calculation", PurchRcptHeader."Order Date"));
+
+        // 4. Vendor Card - general vendor lead time
+        if Vendor.Get(PurchRcptLine."Buy-from Vendor No.") then
+            if Format(Vendor."Lead Time Calculation") <> '' then
+                exit(CalcDate(Vendor."Lead Time Calculation", PurchRcptHeader."Order Date"));
 
         // Default: 7 days from order date
         Evaluate(LeadTimeFormula, '<7D>');

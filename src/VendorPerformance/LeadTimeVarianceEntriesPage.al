@@ -92,6 +92,18 @@ page 50123 "Lead Time Variance Entries"
                     ToolTip = 'Specifies whether the delivery was early, on time, or late.';
                     StyleExpr = StatusStyle;
                 }
+                field("Variance %"; Rec."Variance %")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies the variance as a percentage of promised lead time. Used for Lead Time Reliability calculation.';
+                    StyleExpr = VariancePctStyle;
+                }
+                field("Within LT Tolerance"; Rec."Within LT Tolerance")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies whether this entry is within the Lead Time Variance Tolerance % and counts as reliable.';
+                    StyleExpr = LTToleranceStyle;
+                }
                 field("Receipt Qty"; Rec."Receipt Qty")
                 {
                     ApplicationArea = All;
@@ -274,6 +286,8 @@ page 50123 "Lead Time Variance Entries"
     var
         VarianceStyle: Text;
         StatusStyle: Text;
+        VariancePctStyle: Text;
+        LTToleranceStyle: Text;
 
     trigger OnAfterGetRecord()
     begin
@@ -281,7 +295,16 @@ page 50123 "Lead Time Variance Entries"
     end;
 
     local procedure SetStyles()
+    var
+        MfgSetup: Record "Manufacturing Setup";
+        TolerancePct: Decimal;
     begin
+        // Get tolerance for styling
+        if MfgSetup.Get() then
+            TolerancePct := MfgSetup."Lead Time Variance Tolerance %"
+        else
+            TolerancePct := 20; // Default
+
         // Variance style
         if Abs(Rec."Variance Days") <= 0 then
             VarianceStyle := 'Favorable'
@@ -301,5 +324,19 @@ page 50123 "Lead Time Variance Entries"
             else
                 StatusStyle := 'Subordinate';
         end;
+
+        // Variance % style (based on tolerance)
+        if Rec."Variance %" <= TolerancePct then
+            VariancePctStyle := 'Favorable'
+        else if Rec."Variance %" <= TolerancePct * 1.5 then
+            VariancePctStyle := 'Ambiguous'
+        else
+            VariancePctStyle := 'Unfavorable';
+
+        // Within LT Tolerance style
+        if Rec."Within LT Tolerance" then
+            LTToleranceStyle := 'Favorable'
+        else
+            LTToleranceStyle := 'Unfavorable';
     end;
 }

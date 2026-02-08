@@ -69,10 +69,10 @@ pageextension 50103 "Manufacturing Setup Ext" extends "Manufacturing Setup"
                         ApplicationArea = All;
                         ToolTip = 'Weight for lead time reliability in overall score calculation (default 25%).';
                     }
-                    field("Price Stability Weight"; Rec."Price Stability Weight")
+                    field("Price Competitiveness Weight"; Rec."Price Competitiveness Weight")
                     {
                         ApplicationArea = All;
-                        ToolTip = 'Weight for price stability in overall score calculation (default 15%).';
+                        ToolTip = 'Weight for price competitiveness in overall score calculation (default 15%). Rewards vendors with lower prices.';
                     }
                 }
                 group(Tolerances)

@@ -134,9 +134,9 @@ table 50120 "Vendor Performance"
             DecimalPlaces = 2 : 2;
             Editable = false;
         }
-        field(41; "Price Stability Score"; Decimal)
+        field(41; "Price Competitiveness Score"; Decimal)
         {
-            Caption = 'Price Stability Score';
+            Caption = 'Price Competitiveness Score';
             DecimalPlaces = 2 : 2;
             Editable = false;
             MinValue = 0;

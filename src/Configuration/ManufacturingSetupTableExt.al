@@ -66,9 +66,9 @@ tableextension 50102 "Manufacturing Setup Ext" extends "Manufacturing Setup"
             MaxValue = 100;
             DecimalPlaces = 0 : 0;
         }
-        field(50123; "Price Stability Weight"; Decimal)
+        field(50123; "Price Competitiveness Weight"; Decimal)
         {
-            Caption = 'Price Stability Weight %';
+            Caption = 'Price Competitiveness Weight %';
             DataClassification = CustomerContent;
             InitValue = 15;
             MinValue = 0;

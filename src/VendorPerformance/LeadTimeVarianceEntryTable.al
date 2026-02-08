@@ -76,6 +76,17 @@ table 50121 "Lead Time Variance Entry"
             Caption = 'Delivery Status';
             Editable = false;
         }
+        field(25; "Variance %"; Decimal)
+        {
+            Caption = 'Variance %';
+            Editable = false;
+            DecimalPlaces = 2 : 2;
+        }
+        field(26; "Within LT Tolerance"; Boolean)
+        {
+            Caption = 'Within LT Tolerance';
+            Editable = false;
+        }
         field(30; "Receipt Qty"; Decimal)
         {
             Caption = 'Receipt Qty';
@@ -152,6 +163,15 @@ table 50121 "Lead Time Variance Entry"
             "Delivery Status" := "Delivery Status"::Late
         else
             "Delivery Status" := "Delivery Status"::"On Time";
+
+        // Calculate Lead Time Reliability fields (percentage-based tolerance)
+        // Treat 0 lead time as 1 day to avoid division by zero while keeping entries in calculation
+        if "Promised Lead Time Days" > 0 then
+            "Variance %" := Round(Abs("Variance Days") / "Promised Lead Time Days" * 100, 0.01)
+        else
+            "Variance %" := Round(Abs("Variance Days") / 1 * 100, 0.01); // Treat 0 as 1 day
+
+        "Within LT Tolerance" := "Variance %" <= MfgSetup."Lead Time Variance Tolerance %";
     end;
 
     procedure GetVendorName(): Text[100]

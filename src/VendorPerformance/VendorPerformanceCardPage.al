@@ -182,10 +182,10 @@ page 50121 "Vendor Performance Card"
                     ApplicationArea = All;
                     ToolTip = 'Specifies the average price variance from catalog prices.';
                 }
-                field("Price Stability Score"; Rec."Price Stability Score")
+                field("Price Competitiveness Score"; Rec."Price Competitiveness Score")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Specifies the price stability score (0-100).';
+                    ToolTip = 'Specifies the price competitiveness score (0-100). Higher scores indicate better pricing.';
                 }
             }
             group(Metadata)

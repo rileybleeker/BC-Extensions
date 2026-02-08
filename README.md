@@ -366,6 +366,23 @@ if (InventoryBefore > SafetyStock) and (InventoryAfter <= SafetyStock) then
 // Reservation Entry dates automatically update
 ```
 
+### Vendor Performance Scoring
+```al
+// 1. On-Time Delivery % (fixed-day tolerance)
+OnTimeDeliveryPct := (OnTimeReceipts / TotalReceipts) * 100;
+// Delivery classified as On-Time if: |VarianceDays| <= OnTimeToleranceDays
+
+// 2. Lead Time Reliability % (percentage tolerance)
+LeadTimeReliabilityPct := (WithinToleranceCount / TotalCount) * 100;
+// Within tolerance if: |VarianceDays| / PromisedDays * 100 <= TolerancePct
+
+// 3. Overall Score (weighted average)
+OverallScore := (OnTimeDeliveryPct * 0.30) +
+                (QualityAcceptRatePct * 0.30) +
+                (LeadTimeReliabilityPct * 0.25) +
+                (PriceStabilityScore * 0.15);
+```
+
 ---
 
 ## Testing
@@ -438,6 +455,57 @@ Comprehensive vendor scorecard system with multi-dimensional performance metrics
 - **Quality**: Accept rate %, PPM defect rate, NCR count
 - **Pricing**: Average price variance %, price stability score
 - **Composite**: Overall score (0-100), trend (improving/stable/declining), risk level
+
+**Key Calculations:**
+
+1. **On-Time Delivery %** (uses On-Time Tolerance Days setting):
+   ```
+   On-Time Delivery % = (On-Time Receipts / Total Receipts) × 100
+
+   Delivery Status:
+   - Early:   Variance < -ToleranceDays
+   - On Time: -ToleranceDays ≤ Variance ≤ +ToleranceDays
+   - Late:    Variance > +ToleranceDays
+   ```
+
+2. **Lead Time Reliability %** (uses Lead Time Variance Tolerance % setting):
+   ```
+   Lead Time Reliability % = (Within Tolerance Count / Total Count) × 100
+
+   Within Tolerance Check:
+   IF |Variance Days| / Promised Lead Time Days × 100 ≤ Tolerance % THEN
+       Count as reliable
+   ```
+   Note: Uses absolute value - both early AND late deliveries count against reliability.
+   Rationale: Early deliveries can cause storage costs, cash flow issues, and receiving capacity problems.
+
+3. **Quality Accept Rate %**:
+   ```
+   Quality Accept Rate % = ((Total Qty - Rejected Qty) / Total Qty) × 100
+   Note: NCRs matched by receipt posting date, not NCR creation date
+   ```
+
+4. **Overall Score** (weighted average):
+   ```
+   Overall Score = (On-Time Delivery % × 30%)
+                 + (Quality Accept Rate % × 30%)
+                 + (Lead Time Reliability % × 25%)
+                 + (Price Competitiveness Score × 15%)
+   ```
+
+5. **Lead Time Calculation Priority** (fallback only):
+   When calculating promised receipt date and document has no Promised/Expected Receipt Date:
+   | Priority | Source |
+   |----------|--------|
+   | 1 (Highest) | Item Vendor Catalog |
+   | 2 | Stockkeeping Unit (SKU) |
+   | 3 | Item Card |
+   | 4 (Lowest) | Vendor Card |
+   | Default | 7 days |
+
+   **Important:** This priority is ONLY used as a fallback. If the purchase document has explicit Promised or Expected Receipt Date fields populated, those dates take precedence and this calculation is skipped.
+
+For detailed formulas and examples, see [docs/Vendor_Performance_System.md](docs/Vendor_Performance_System.md).
 
 **Business Value:**
 - Data-driven vendor evaluation and selection
@@ -553,6 +621,7 @@ Both Requisition Worksheet and Planning Worksheet now include:
 - **[docs/SETUP.md](docs/SETUP.md)** - Complete setup instructions
 - **[docs/TESTING.md](docs/TESTING.md)** - Test cases and procedures
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[docs/Vendor_Performance_System.md](docs/Vendor_Performance_System.md)** - Vendor Performance scoring calculations and metrics
 - **[docs/Purchase_Suggestions_Vendor_Ranking.md](docs/Purchase_Suggestions_Vendor_Ranking.md)** - Purchase Suggestions detailed specification
 - **[PLANNING_PARAMETER_SUGGESTION_DESIGN.md](PLANNING_PARAMETER_SUGGESTION_DESIGN.md)** - Planning suggestions technical design
 - **[SKU_LEVEL_PLANNING_ADDENDUM.md](SKU_LEVEL_PLANNING_ADDENDUM.md)** - SKU-level planning implementation

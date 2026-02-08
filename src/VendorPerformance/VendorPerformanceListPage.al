@@ -69,10 +69,10 @@ page 50120 "Vendor Performance List"
                     ApplicationArea = All;
                     ToolTip = 'Specifies the lead time reliability percentage.';
                 }
-                field("Price Stability Score"; Rec."Price Stability Score")
+                field("Price Competitiveness Score"; Rec."Price Competitiveness Score")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Specifies the price stability score.';
+                    ToolTip = 'Specifies the price competitiveness score.';
                 }
                 field("Total Receipts"; Rec."Total Receipts")
                 {
