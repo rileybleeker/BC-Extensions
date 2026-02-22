@@ -1,0 +1,233 @@
+/* Planning Worksheet Visualizer Styles */
+
+#visualizer-root {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 8px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+/* --- Toolbar --- */
+#chart-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.toolbar-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    padding-right: 12px;
+    border-right: 1px solid #dee2e6;
+}
+
+.toolbar-group:last-child {
+    border-right: none;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #495057;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.toggle-label input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.toggle-label select {
+    padding: 2px 6px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    font-size: 12px;
+    background: #fff;
+}
+
+/* --- Chart --- */
+#chart-container {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    margin-bottom: 16px;
+}
+
+#chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* --- Explanation Panel --- */
+#explanation-panel {
+    border-top: 2px solid #dee2e6;
+    padding-top: 12px;
+}
+
+.panel-title {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #212529;
+}
+
+.no-explanations {
+    padding: 16px;
+    color: #6c757d;
+    font-style: italic;
+    text-align: center;
+}
+
+.explanation-card {
+    border: 1px solid #dee2e6;
+    border-left: 4px solid #6c757d;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: #fff;
+    transition: box-shadow 0.15s;
+}
+
+.explanation-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.explanation-card.severity-1 {
+    border-left-color: #28a745;
+}
+
+.explanation-card.severity-2 {
+    border-left-color: #ffc107;
+}
+
+.explanation-card.severity-3 {
+    border-left-color: #dc3545;
+}
+
+.explanation-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.action-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: #6c757d;
+    color: #fff;
+}
+
+.action-badge.action-new {
+    background: #28a745;
+}
+
+.action-badge.action-changeqty {
+    background: #17a2b8;
+}
+
+.action-badge.action-reschedule {
+    background: #fd7e14;
+}
+
+.action-badge.action-reschedchgqty {
+    background: #e83e8c;
+}
+
+.action-badge.action-cancel {
+    background: #dc3545;
+}
+
+.severity-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.severity-badge.severity-1 {
+    background: #d4edda;
+    color: #155724;
+}
+
+.severity-badge.severity-2 {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.severity-badge.severity-3 {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.expl-qty,
+.expl-date,
+.expl-policy {
+    font-size: 12px;
+    color: #495057;
+}
+
+.expl-qty {
+    font-weight: 600;
+}
+
+.expl-policy {
+    font-style: italic;
+    color: #6c757d;
+}
+
+.explanation-summary {
+    font-size: 13px;
+    color: #212529;
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.explanation-detail {
+    font-size: 12px;
+    color: #495057;
+    line-height: 1.5;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 3px;
+    margin-bottom: 6px;
+}
+
+.explanation-detail.collapsed {
+    display: none;
+}
+
+.explanation-detail p {
+    margin: 4px 0;
+}
+
+.expand-btn {
+    background: none;
+    border: none;
+    color: #007bff;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 0;
+    text-decoration: underline;
+}
+
+.expand-btn:hover {
+    color: #0056b3;
+}
