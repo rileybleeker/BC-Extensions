@@ -71,4 +71,8 @@ enum 50160 "Inventory Event Type"
     {
         Caption = 'Pending Requisition Line';
     }
+    value(17; "Demand Forecast")
+    {
+        Caption = 'Demand Forecast';
+    }
 }

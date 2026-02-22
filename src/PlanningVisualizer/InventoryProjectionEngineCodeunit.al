@@ -3,7 +3,7 @@ codeunit 50161 "Inventory Projection Engine"
     // Calculates running inventory totals (before/after suggestions) and reads planning parameters
 
     procedure CalculateProjections(
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         RunningBefore: Decimal;
@@ -18,17 +18,19 @@ codeunit 50161 "Inventory Projection Engine"
         // Single pass: calculate both projections
         if TempEventBuffer.FindSet() then
             repeat
-                // "After" includes all events
-                RunningAfter += TempEventBuffer.Quantity;
+                // Informational events (e.g. demand forecast) are displayed but
+                // excluded from running totals to avoid double-counting
+                if not TempEventBuffer."Is Informational" then begin
+                    // "After" includes all non-informational events
+                    RunningAfter += TempEventBuffer.Quantity;
+
+                    // "Before" also excludes planning suggestions
+                    if not TempEventBuffer."Is Suggestion" then
+                        RunningBefore += TempEventBuffer.Quantity;
+                end;
+
+                TempEventBuffer."Running Total Before" := RunningBefore;
                 TempEventBuffer."Running Total After" := RunningAfter;
-
-                // "Before" excludes planning suggestions
-                if not TempEventBuffer."Is Suggestion" then begin
-                    RunningBefore += TempEventBuffer.Quantity;
-                    TempEventBuffer."Running Total Before" := RunningBefore;
-                end else
-                    TempEventBuffer."Running Total Before" := RunningBefore;
-
                 TempEventBuffer.Modify();
             until TempEventBuffer.Next() = 0;
     end;

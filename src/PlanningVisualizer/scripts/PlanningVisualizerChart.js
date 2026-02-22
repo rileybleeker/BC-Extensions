@@ -28,6 +28,7 @@
             '      <label class="toggle-label"><input type="checkbox" id="chkDemand" checked> Demand</label>' +
             '      <label class="toggle-label"><input type="checkbox" id="chkPending" checked> Pending Req. Lines</label>' +
             '      <label class="toggle-label"><input type="checkbox" id="chkPlanComp" checked> Planning Components</label>' +
+            '      <label class="toggle-label"><input type="checkbox" id="chkForecast" checked> Demand Forecast</label>' +
             '      <label class="toggle-label"><input type="checkbox" id="chkTracking"> Order Tracking</label>' +
             '    </div>' +
             '    <div class="toolbar-group">' +
@@ -54,6 +55,7 @@
         bindToggle('chkSuggested', 4);
         bindToggle('chkPending', 5);
         bindToggle('chkPlanComp', 6);
+        bindToggle('chkForecast', 7);
 
         document.getElementById('chkTracking').addEventListener('change', function () {
             showTracking = this.checked;
@@ -93,13 +95,16 @@
         var suggestionPoints = [];
         var pendingReqPoints = [];
         var planningCompPoints = [];
+        var forecastPoints = [];
         var eventLookup = {};
 
         (data.events || []).forEach(function (evt) {
             eventLookup[evt.entryNo] = evt;
             if (evt.type === 'Initial Inventory') return;
-            var point = { x: evt.date, y: Math.abs(evt.qty), entryNo: evt.entryNo };
-            if (evt.type === 'Planning Component') {
+            var point = { x: evt.date, y: evt.balanceAfter, entryNo: evt.entryNo };
+            if (evt.type === 'Demand Forecast') {
+                forecastPoints.push(point);
+            } else if (evt.type === 'Planning Component') {
                 planningCompPoints.push(point);
             } else if (evt.type === 'Pending Requisition Line') {
                 pendingReqPoints.push(point);
@@ -273,6 +278,19 @@
                         borderColor: 'rgba(255, 133, 27, 1)',
                         borderWidth: 2,
                         order: 0
+                    },
+                    // Dataset 7: Demand Forecast (informational, not in running totals)
+                    {
+                        label: 'Demand Forecast',
+                        data: forecastPoints,
+                        type: 'scatter',
+                        pointStyle: 'star',
+                        pointRadius: 10,
+                        pointHoverRadius: 14,
+                        backgroundColor: 'rgba(255, 215, 0, 0.7)',
+                        borderColor: 'rgba(218, 165, 32, 1)',
+                        borderWidth: 2,
+                        order: 0
                     }
                 ]
             },
@@ -326,6 +344,7 @@
                                         var lines = [evt.type + ': ' + formatQty(evt.qty)];
                                         if (evt.description) lines.push(evt.description);
                                         if (evt.actionMessage) lines.push('Action: ' + evt.actionMessage);
+                                        lines.push('Projected Inventory: ' + formatQty(evt.balanceAfter));
                                         return lines;
                                     }
                                 }
@@ -366,10 +385,11 @@
             var meta4 = chart.getDatasetMeta(4); // suggestions
             var meta5 = chart.getDatasetMeta(5); // pending req lines
             var meta6 = chart.getDatasetMeta(6); // planning components
+            var meta7 = chart.getDatasetMeta(7); // demand forecast
 
             chartData.trackingPairs.forEach(function (pair) {
                 var supplyPt = findPointPixel(chart, pair.supplyEntryNo, [meta2, meta4, meta5]);
-                var demandPt = findPointPixel(chart, pair.demandEntryNo, [meta3, meta6]);
+                var demandPt = findPointPixel(chart, pair.demandEntryNo, [meta3, meta6, meta7]);
 
                 if (supplyPt && demandPt) {
                     ctx.save();

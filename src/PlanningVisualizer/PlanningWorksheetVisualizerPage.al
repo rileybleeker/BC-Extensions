@@ -158,7 +158,7 @@ page 50160 "Planning Worksheet Visualizer"
 
     local procedure LoadVisualizerData()
     var
-        TempEventBuffer: Record "Inventory Event Buffer" temporary;
+        TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         TempExplanation: Record "Planning Explanation" temporary;
         EventCollector: Codeunit "Inventory Event Collector";
         ProjectionEngine: Codeunit "Inventory Projection Engine";

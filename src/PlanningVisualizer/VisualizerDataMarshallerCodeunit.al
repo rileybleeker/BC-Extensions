@@ -3,7 +3,7 @@ codeunit 50163 "Visualizer Data Marshaller"
     // Serializes temp table data into JSON for the ControlAddin
 
     procedure BuildChartDataJSON(
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary;
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         ReorderPoint: Decimal;
         SafetyStock: Decimal;
         MaxInventory: Decimal;
@@ -55,6 +55,7 @@ codeunit 50163 "Visualizer Data Marshaller"
                 EventObj.Add('qty', TempEventBuffer.Quantity);
                 EventObj.Add('isSupply', TempEventBuffer."Is Supply");
                 EventObj.Add('isSuggestion', TempEventBuffer."Is Suggestion");
+                EventObj.Add('isInformational', TempEventBuffer."Is Informational");
                 EventObj.Add('description', TempEventBuffer."Source Description");
                 EventObj.Add('sourcePageId', TempEventBuffer."Source Page ID");
                 EventObj.Add('sourceDocNo', TempEventBuffer."Source Document No.");

@@ -26,8 +26,8 @@ permissionset 50100 "ALProject10"
         tabledata "Purchase Suggestion" = RIMD,
         table "Vendor Ranking" = X,
         tabledata "Vendor Ranking" = RIMD,
-        table "Inventory Event Buffer" = X,
-        tabledata "Inventory Event Buffer" = RIMD,
+        table "Visualizer Event Buffer" = X,
+        tabledata "Visualizer Event Buffer" = RIMD,
         table "Planning Explanation" = X,
         tabledata "Planning Explanation" = RIMD;
 }

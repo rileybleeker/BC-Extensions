@@ -1,6 +1,6 @@
-table 50160 "Inventory Event Buffer"
+table 50160 "Visualizer Event Buffer"
 {
-    Caption = 'Inventory Event Buffer';
+    Caption = 'Visualizer Event Buffer';
     DataClassification = CustomerContent;
     TableType = Temporary;
 
@@ -87,6 +87,10 @@ table 50160 "Inventory Event Buffer"
         field(33; "Original Date"; Date)
         {
             Caption = 'Original Date';
+        }
+        field(35; "Is Informational"; Boolean)
+        {
+            Caption = 'Is Informational';
         }
         field(40; "Tracking Entry No."; Integer)
         {

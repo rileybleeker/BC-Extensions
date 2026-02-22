@@ -14,7 +14,7 @@ codeunit 50160 "Inventory Event Collector"
         IncludeSuggestions: Boolean;
         WorksheetTemplateName: Code[10];
         JournalBatchName: Code[10];
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     begin
         if ItemNo = '' then
@@ -37,6 +37,9 @@ codeunit 50160 "Inventory Event Collector"
         CollectJobPlanningLines(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
         CollectPlanningComponents(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
         CollectBlanketSalesOrders(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
+
+        // Informational demand sources (not included in running totals)
+        CollectDemandForecast(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
 
         // Supply sources
         CollectPurchaseOrders(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
@@ -62,7 +65,7 @@ codeunit 50160 "Inventory Event Collector"
         LocationCode: Code[10];
         VariantCode: Code[10];
         StartDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         Item: Record Item;
@@ -93,7 +96,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         SalesLine: Record "Sales Line";
@@ -131,7 +134,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         ProdOrderComp: Record "Prod. Order Component";
@@ -171,7 +174,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         AssemblyLine: Record "Assembly Line";
@@ -209,7 +212,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         TransferLine: Record "Transfer Line";
@@ -245,7 +248,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         ServiceLine: Record "Service Line";
@@ -283,7 +286,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         JobPlanningLine: Record "Job Planning Line";
@@ -320,7 +323,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         PlanningComponent: Record "Planning Component";
@@ -360,7 +363,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         SalesLine: Record "Sales Line";
@@ -392,6 +395,47 @@ codeunit 50160 "Inventory Event Collector"
             until SalesLine.Next() = 0;
     end;
 
+    local procedure CollectDemandForecast(
+        ItemNo: Code[20];
+        LocationCode: Code[10];
+        VariantCode: Code[10];
+        StartDate: Date;
+        EndDate: Date;
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
+    )
+    var
+        ProdForecastEntry: Record "Production Forecast Entry";
+    begin
+        ProdForecastEntry.SetRange("Item No.", ItemNo);
+        ProdForecastEntry.SetRange("Forecast Date", StartDate, EndDate);
+        ProdForecastEntry.SetFilter("Forecast Quantity (Base)", '>0');
+        if LocationCode <> '' then
+            ProdForecastEntry.SetRange("Location Code", LocationCode);
+        if VariantCode <> '' then
+            ProdForecastEntry.SetRange("Variant Code", VariantCode);
+
+        if ProdForecastEntry.FindSet() then
+            repeat
+                InsertEvent(
+                    TempEventBuffer,
+                    ItemNo, ProdForecastEntry."Location Code", ProdForecastEntry."Variant Code",
+                    ProdForecastEntry."Forecast Date",
+                    "Inventory Event Type"::"Demand Forecast",
+                    -ProdForecastEntry."Forecast Quantity (Base)",
+                    false,
+                    false,
+                    StrSubstNo('Demand Forecast: %1 (%2)',
+                        ProdForecastEntry."Production Forecast Name", ProdForecastEntry.Description),
+                    0, '', 0,
+                    Page::"Demand Forecast Names"
+                );
+                // Mark as informational so it's excluded from running totals
+                TempEventBuffer.Get(NextEntryNo);
+                TempEventBuffer."Is Informational" := true;
+                TempEventBuffer.Modify();
+            until ProdForecastEntry.Next() = 0;
+    end;
+
     local procedure CollectPendingReqLines(
         ItemNo: Code[20];
         LocationCode: Code[10];
@@ -400,7 +444,7 @@ codeunit 50160 "Inventory Event Collector"
         EndDate: Date;
         ExcludeTemplateName: Code[10];
         ExcludeBatchName: Code[10];
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         ReqLine: Record "Requisition Line";
@@ -419,10 +463,8 @@ codeunit 50160 "Inventory Event Collector"
         if ReqLine.FindSet() then
             repeat
                 // Skip lines from the current worksheet being visualized
-                if (ReqLine."Worksheet Template Name" = ExcludeTemplateName) and
-                   (ReqLine."Journal Batch Name" = ExcludeBatchName) then
-                    // This line belongs to the current worksheet; handled by CollectPlanningSuggestions
-                else
+                if (ReqLine."Worksheet Template Name" <> ExcludeTemplateName) or
+                   (ReqLine."Journal Batch Name" <> ExcludeBatchName) then
                     InsertEvent(
                         TempEventBuffer,
                         ItemNo, ReqLine."Location Code", ReqLine."Variant Code",
@@ -446,7 +488,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         PurchaseLine: Record "Purchase Line";
@@ -484,7 +526,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         ProdOrderLine: Record "Prod. Order Line";
@@ -524,7 +566,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         AssemblyHeader: Record "Assembly Header";
@@ -561,7 +603,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         TransferLine: Record "Transfer Line";
@@ -599,7 +641,7 @@ codeunit 50160 "Inventory Event Collector"
         EndDate: Date;
         WorksheetTemplateName: Code[10];
         JournalBatchName: Code[10];
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         ReqLine: Record "Requisition Line";
@@ -686,7 +728,7 @@ codeunit 50160 "Inventory Event Collector"
     end;
 
     local procedure InsertSuggestionEvent(
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary;
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         ItemNo: Code[20];
         ReqLine: Record "Requisition Line";
         EventDate: Date;
@@ -722,7 +764,7 @@ codeunit 50160 "Inventory Event Collector"
         ItemNo: Code[20];
         LocationCode: Code[10];
         VariantCode: Code[10];
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
         ReservEntry: Record "Reservation Entry";
@@ -784,7 +826,7 @@ codeunit 50160 "Inventory Event Collector"
     end;
 
     local procedure FindBufferEntryBySource(
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary;
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         SourceType: Integer;
         SourceId: Code[20];
         SourceRefNo: Integer
@@ -810,7 +852,7 @@ codeunit 50160 "Inventory Event Collector"
     end;
 
     local procedure InsertEvent(
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary;
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         ItemNo: Code[20];
         LocationCode: Code[10];
         VariantCode: Code[10];

@@ -11,7 +11,7 @@ codeunit 50162 "Planning Explanation Engine"
         ItemNo: Code[20];
         LocationCode: Code[10];
         VariantCode: Code[10];
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary;
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         var TempExplanation: Record "Planning Explanation" temporary
     )
     var
@@ -66,7 +66,7 @@ codeunit 50162 "Planning Explanation Engine"
     local procedure GenerateSingleExplanation(
         ReqLine: Record "Requisition Line";
         Item: Record Item;
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary;
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         var TempExplanation: Record "Planning Explanation" temporary;
         ReorderPoint: Decimal;
         SafetyStock: Decimal;
@@ -397,7 +397,7 @@ codeunit 50162 "Planning Explanation Engine"
     end;
 
     local procedure FindLowestProjection(
-        var TempEventBuffer: Record "Inventory Event Buffer" temporary;
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         NearDate: Date;
         var LowestBefore: Decimal;
         var LowestBeforeDate: Date;
