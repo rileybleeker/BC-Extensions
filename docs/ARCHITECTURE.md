@@ -2,15 +2,16 @@
 
 ## System Overview
 
-ALProject10 consists of six integrated subsystems:
+ALProject10 consists of seven integrated subsystems:
 1. **Production Order Upper Tolerance Management** - Prevents over-production
 2. **Reservation Date Synchronization** - Eliminates reservation date conflicts
 3. **Quality Management** - Lot validation and testing workflow
 4. **CSV Sales Order Import** - Bulk order creation with automatic Item creation
 5. **Low Inventory Alert** - Real-time inventory monitoring and alerting
 6. **Planning Parameter Suggestions** - Automated demand analysis and planning optimization
+7. **Planning Worksheet Visualizer** - Interactive supply/demand timeline with coverage analysis
 
-These systems work together to provide comprehensive manufacturing operations management, quality control, bulk order processing, inventory visibility, and data-driven planning optimization in Business Central.
+These systems work together to provide comprehensive manufacturing operations management, quality control, bulk order processing, inventory visibility, data-driven planning optimization, and planning visualization in Business Central.
 
 ---
 
@@ -678,6 +679,134 @@ Network Failure: ─► Log as Failed ("Failed to send HTTP request")
 - No Error() call on HTTP failure
 - Business transaction proceeds
 - Failure logged for later investigation
+
+---
+
+## Planning Worksheet Visualizer Architecture
+
+### Data Pipeline
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    Planning Worksheet Visualizer                         │
+│                                                                          │
+│  ┌────────────────────┐     ┌────────────────────┐                     │
+│  │ Planning Worksheet │     │ Requisition         │                     │
+│  │ Page Extension     │     │ Worksheet Extension │                     │
+│  │ (50160)            │     │ (50161)             │                     │
+│  └────────┬───────────┘     └────────┬────────────┘                     │
+│           │  "Visualize" action      │                                   │
+│           └──────────┬───────────────┘                                   │
+│                      ▼                                                   │
+│  ┌───────────────────────────────────────────────────────────┐          │
+│  │         Planning Worksheet Visualizer (Page 50160)        │          │
+│  │                                                           │          │
+│  │  LoadVisualizerData():                                    │          │
+│  │  ┌──────────────────┐                                     │          │
+│  │  │ Step 1: Collect   │  Purchase Orders, Sales Orders,    │          │
+│  │  │ Events           │  Prod Orders, Transfers, Forecasts  │          │
+│  │  │ (Codeunit 50160) │  → TempEventBuffer (Table 50160)   │          │
+│  │  └────────┬─────────┘                                     │          │
+│  │           ▼                                               │          │
+│  │  ┌──────────────────┐                                     │          │
+│  │  │ Step 2: Calculate │  Running totals before/after        │          │
+│  │  │ Projections      │  suggestions applied                │          │
+│  │  │ (Codeunit 50161) │                                     │          │
+│  │  └────────┬─────────┘                                     │          │
+│  │           ▼                                               │          │
+│  │  ┌──────────────────┐                                     │          │
+│  │  │ Step 3: Generate  │  Plain-English why/impact text      │          │
+│  │  │ Explanations     │  → TempExplanation (Table 50161)    │          │
+│  │  │ (Codeunit 50162) │                                     │          │
+│  │  └────────┬─────────┘                                     │          │
+│  │           ▼                                               │          │
+│  │  ┌──────────────────┐                                     │          │
+│  │  │ Step 4: Collect   │  Reservation Entry (337) tracking   │          │
+│  │  │ Coverage Data    │  + Untracked Planning Element        │          │
+│  │  │ (Codeunit 50160) │  → TempCoverageBuffer (Table 50162) │          │
+│  │  └────────┬─────────┘                                     │          │
+│  │           ▼                                               │          │
+│  │  ┌──────────────────┐     ┌──────────────────────────┐    │          │
+│  │  │ Step 5: Marshal   │────►│ Chart.js ControlAddin    │    │          │
+│  │  │ to JSON          │ JSON│                          │    │          │
+│  │  │ (Codeunit 50163) │     │ Custom Plugins:          │    │          │
+│  │  └──────────────────┘     │ - trackingLinesPlugin    │    │          │
+│  │                           │ - coverageBarsPlugin     │    │          │
+│  │                           └──────────────────────────┘    │          │
+│  └───────────────────────────────────────────────────────────┘          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Event Collection Sources
+
+```
+BC Table                        Event Type              Supply/Demand
+===============                ============            =============
+Purchase Line                → Purchase Order          Supply
+Purchase Return Line         → Purchase Return         Demand
+Prod. Order Line (Firm)      → Firm Planned Prod.      Supply
+Prod. Order Line (Released)  → Released Prod.          Supply
+Transfer Line (Inbound)      → Transfer In             Supply
+Transfer Line (Outbound)     → Transfer Out            Demand
+Sales Line                   → Sales Order             Demand
+Prod. Order Component (Firm) → Planning Component      Demand
+Prod. Order Component (Rel.) → Firm Planned Component  Demand
+Production Forecast Entry    → Demand Forecast         Demand (real)
+Requisition Line (pending)   → Pending Req. Line       Supply/Demand
+Blanket Sales Line           → Blanket Sales Order     Demand
+```
+
+### Coverage Bar Data Flow
+
+```
+Requisition Line (Action = New)
+        │
+        ├──► Reservation Entry (Source Type 246)
+        │    Filter: Source ID = Template, Batch, Line No.
+        │    Filter: Quantity (Base) > 0 (supply side)
+        │         │
+        │         └──► Paired Entry (same Entry No., negative qty)
+        │              └──► FindBufferEntryBySource() → demand date/description
+        │                   └──► TempCoverageBuffer (Is Untracked = false)
+        │
+        └──► Untracked Planning Element (Table 99000855)
+             Filter: Worksheet Template/Batch/Line, Item No.
+             Fields: "Untracked Quantity", "Source" (Text[200])
+                  └──► TempCoverageBuffer (Is Untracked = true)
+```
+
+### Chart.js Plugin Architecture
+
+| Plugin | Hook | Purpose |
+|--------|------|---------|
+| `trackingLinesPlugin` | `afterDatasetsDraw` | Draws dashed lines between supply and demand scatter points |
+| `coverageBarsPlugin` | `afterDatasetsDraw` | Draws purple coverage bars and teal order timeline bars |
+| `coverageBarsPlugin` | `afterEvent` | Hit-tests mousemove for coverage bar hover tooltips |
+
+### JSON Data Structure
+
+```json
+{
+  "thresholds": { "reorderPoint": 50, "safetyStock": 20, "maxInventory": 200 },
+  "planningParams": { "reorderingPolicy": "Maximum Qty.", "reorderQty": 65, "leadTimeDays": 14 },
+  "events": [
+    { "entryNo": 1, "date": "2026-02-21", "type": "Purchase Order", "qty": 100,
+      "isSupply": true, "isSuggestion": false, "description": "PO-1234",
+      "balanceBefore": 50, "balanceAfter": 150 }
+  ],
+  "projectionBefore": [ { "date": "2026-02-21", "balance": 50 } ],
+  "projectionAfter": [ { "date": "2026-02-21", "balance": 150 } ],
+  "trackingPairs": [ { "supplyEntryNo": 5, "demandEntryNo": 3 } ],
+  "coverageBars": [{
+    "reqLineNo": 10000, "supplyDate": "2026-02-21", "supplyQty": 65,
+    "actionMessage": "New",
+    "orderStartDate": "2026-02-07", "orderEndDate": "2026-02-21",
+    "startDate": "2026-02-21", "endDate": "2026-04-03",
+    "trackedDemand": [ { "date": "2026-03-01", "qty": 10, "source": "Demand Forecast" } ],
+    "untrackedElements": [ { "source": "Safety Stock Quantity", "qty": 5 } ]
+  }]
+}
+```
 
 ---
 

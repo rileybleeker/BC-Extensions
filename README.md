@@ -339,6 +339,19 @@ For detailed setup instructions, see [docs/SETUP.md](docs/SETUP.md).
 | Codeunit | 50150 | Purchase Suggestion Manager | Workflow management |
 | Codeunit | 50151 | Vendor Selector | Vendor scoring/ranking |
 | Enum | 50150 | Purchase Suggestion Status | Pending/Approved/Rejected/Converted |
+| **Planning Visualizer** ||||
+| Table | 50160 | Visualizer Event Buffer | Temporary event data for chart |
+| Table | 50161 | Planning Explanation | Temporary explanation records |
+| Table | 50162 | Suggestion Coverage Buffer | Temporary coverage bar data |
+| Page | 50160 | Planning Worksheet Visualizer | Main visualizer page |
+| Page Extension | 50160 | Plan Wksh Visualizer Ext | Adds Visualize action to Planning Worksheet |
+| Page Extension | 50161 | Req Wksh Visualizer Ext | Adds Visualize action to Req. Worksheet |
+| Codeunit | 50160 | Inventory Event Collector | Collects supply/demand events |
+| Codeunit | 50161 | Inventory Projection Engine | Calculates running totals |
+| Codeunit | 50162 | Planning Explanation Engine | Generates explanation text |
+| Codeunit | 50163 | Visualizer Data Marshaller | JSON serialization |
+| Enum | 50160 | Inventory Event Type | Supply/demand event types |
+| ControlAddin | - | Planning Visualizer Chart | Chart.js integration |
 
 ---
 
@@ -613,6 +626,65 @@ Both Requisition Worksheet and Planning Worksheet now include:
 
 ---
 
+### 10. Planning Worksheet Visualizer
+Interactive Chart.js-based visualization of the planning engine's supply/demand timeline, integrated directly into the Planning Worksheet and Requisition Worksheet.
+
+**Files:**
+- `PlanningWorksheetVisualizerPage.al` - Main visualizer page with data pipeline orchestration
+- `PlanningVisualizerChartAddin.al` - ControlAddin wrapping Chart.js with custom plugins
+- `InventoryEventCollectorCodeunit.al` - Collects supply/demand events from BC tables
+- `InventoryProjectionEngineCodeunit.al` - Calculates running inventory projections
+- `PlanningExplanationEngineCodeunit.al` - Generates plain-English explanations of planning suggestions
+- `VisualizerDataMarshallerCodeunit.al` - Serializes AL data to JSON for the chart
+- `InventoryEventBufferTable.al` - Temporary buffer for collected events
+- `PlanningExplanationTable.al` - Temporary buffer for explanations
+- `SuggestionCoverageBufferTable.al` - Temporary buffer for coverage bar data
+- `InventoryEventTypeEnum.al` - Event type enumeration
+- `PlanWorksheetVisualizerPageExt.al` / `ReqWorksheetVisualizerPageExt.al` - Worksheet page extensions
+- `scripts/PlanningVisualizerChart.js` - Chart.js rendering, custom plugins, toolbar
+- `styles/PlanningVisualizer.css` - Stylesheet for toolbar, explanations, and tooltips
+
+**Data Pipeline:**
+```
+Planning Worksheet → EventCollector → ProjectionEngine → DataMarshaller → JSON → Chart.js
+                                    ↓
+                          ExplanationEngine → Explanation Cards
+                                    ↓
+                     CollectSuggestionCoverage → Coverage Bars
+```
+
+**Chart Features:**
+- **Projected Inventory Line**: Shows inventory balance over time (before and after suggestions)
+- **Event Scatter Points**: Existing supply, suggested supply, demand, pending req. lines, planning components, demand forecasts
+- **Threshold Lines**: Reorder point, safety stock, and max inventory annotations
+- **Order Tracking Lines**: Visual links between supply and demand pairs (from Reservation Entry)
+- **Coverage Bars**: Purple horizontal bars showing which demands each supply suggestion covers (from order tracking + untracked planning elements)
+- **Order Timeline Bars**: Teal horizontal bars showing Starting Date → Ending Date for each order
+- **Hover Tooltips**: Coverage bar tooltips with tracked demand breakdown and untracked elements
+- **Explanation Cards**: Plain-English summaries of why each planning suggestion was made, with severity badges and expandable details
+- **Toolbar**: Toggle visibility of each dataset, tracking lines, coverage bars; select time horizon (30/60/90/180 days)
+
+**Data Sources:**
+- Purchase Orders, Purchase Return Orders (existing supply)
+- Firm Planned & Released Production Orders (existing supply)
+- Transfer Orders (supply and demand)
+- Sales Orders, Blanket Sales Orders (demand)
+- Production Order Components (demand)
+- Production Forecast Entry (demand forecasts, treated as real demand)
+- Requisition Lines (pending suggestions)
+- Reservation Entry (order tracking pairs)
+- Untracked Planning Element (safety stock, reorder point coverage)
+
+**Business Value:**
+- Visualizes the "why" behind planning suggestions
+- Makes complex supply/demand relationships understandable at a glance
+- Coverage bars show exactly which demands are grouped into each supply order
+- Order timeline bars show lead time from order placement to receipt
+- Reduces time spent manually tracing through Item Availability by Event
+- Accessible directly from the Planning Worksheet via "Visualize" action
+
+---
+
 ## Documentation
 
 - **[NOTES.md](NOTES.md)** - Development notes, lessons learned, technical insights
@@ -625,10 +697,18 @@ Both Requisition Worksheet and Planning Worksheet now include:
 - **[docs/Purchase_Suggestions_Vendor_Ranking.md](docs/Purchase_Suggestions_Vendor_Ranking.md)** - Purchase Suggestions detailed specification
 - **[PLANNING_PARAMETER_SUGGESTION_DESIGN.md](PLANNING_PARAMETER_SUGGESTION_DESIGN.md)** - Planning suggestions technical design
 - **[SKU_LEVEL_PLANNING_ADDENDUM.md](SKU_LEVEL_PLANNING_ADDENDUM.md)** - SKU-level planning implementation
+- **Planning Worksheet Visualizer** - See Feature 10 section above for architecture and data pipeline
 
 ---
 
 ## Version History
+
+### Version 1.0.0.12 (2026-02-21)
+- Added Planning Worksheet Visualizer with interactive Chart.js timeline
+- Coverage bars showing demand-to-supply tracking via Reservation Entry
+- Order timeline bars showing Starting Date → Ending Date for each suggestion
+- Demand forecasts treated as real demand in inventory projections
+- Plain-English explanation cards for planning suggestions
 
 ### Version 1.0.0.10 (2026-02-07)
 - Added Vendor No. lookup integration to Requisition Worksheet and Planning Worksheet

@@ -13,6 +13,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Create production-ready branch
 - Test Reordering Policy mapping (VT-008)
 
+## [1.0.0.12] - 2026-02-21
+
+### Added
+
+#### Feature 10: Planning Worksheet Visualizer
+- **Purpose**: Interactive visualization of the planning engine's supply/demand timeline with coverage analysis
+- **Tables**:
+  - Table (50160): Visualizer Event Buffer - temporary staging for collected supply/demand events
+  - Table (50161): Planning Explanation - temporary storage for generated explanation text
+  - Table (50162): Suggestion Coverage Buffer - temporary staging for coverage bar data
+- **Pages**:
+  - Page (50160): Planning Worksheet Visualizer - main visualizer page with Chart.js ControlAddin
+  - Page Extension (50160): Plan Wksh Visualizer Ext - adds "Visualize" action to Planning Worksheet
+  - Page Extension (50161): Req Wksh Visualizer Ext - adds "Visualize" action to Requisition Worksheet
+- **Codeunits**:
+  - Codeunit (50160): Inventory Event Collector
+    - Collects events from 10+ BC tables: Purchase Orders, Production Orders, Sales Orders, Transfer Orders, Blanket Sales Orders, Planning Components, Demand Forecasts, Requisition Lines
+    - `CollectSuggestionCoverage` - queries Reservation Entry (tracking) and Untracked Planning Element for coverage bar data
+    - `FindBufferEntryBySource` - cross-references tracking entries to event buffer for accurate dates
+  - Codeunit (50161): Inventory Projection Engine
+    - `CalculateProjections` - computes running inventory totals before and after suggestions
+    - Handles informational vs real demand distinction
+  - Codeunit (50162): Planning Explanation Engine
+    - `GenerateExplanations` - produces plain-English summaries for each planning suggestion
+    - Covers New, Change Qty, Reschedule, Reschedule & Change Qty, and Cancel action messages
+    - Severity scoring (1-3) based on proximity to safety stock and reorder point
+  - Codeunit (50163): Visualizer Data Marshaller
+    - `BuildChartDataJSON` - serializes events, projections, tracking pairs, and coverage bars to JSON
+    - `BuildExplanationsJSON` - serializes explanation cards to JSON
+    - `BuildCoverageArray` - groups coverage records by requisition line for nested JSON output
+- **ControlAddin**: Planning Visualizer Chart
+  - Chart.js 4.4.7 with chartjs-plugin-annotation
+  - Custom `trackingLinesPlugin` - draws supply-to-demand tracking lines
+  - Custom `coverageBarsPlugin` - draws coverage bars and order timeline bars with hover tooltips
+  - `getPixelForDate` with interpolation fallback for dates not on the category axis
+  - Toolbar with dataset toggles, tracking/coverage checkboxes, and horizon selector
+- **Enum** (50160): Inventory Event Type
+  - Values: Initial Inventory, Purchase Order, Purchase Return, Firm Planned Prod., Released Prod., Transfer In/Out, Sales Order, Planning Component, Firm Planned Component, Requisition Line, Blanket Sales Order, Pending Req. Line, Demand Forecast
+- **JavaScript**: `PlanningVisualizerChart.js` - 700+ lines of Chart.js rendering
+- **CSS**: `PlanningVisualizer.css` - toolbar, explanation cards, coverage tooltip styles
+
+### Key Design Decisions
+- **Demand Forecasts as real demand**: Production Forecast Entries are included in running totals (not informational) because BC's planning engine generates suggestions to cover them
+- **Coverage via Reservation Entry**: Uses Source Type 246 (Requisition Line) tracking pairs to find which demands each suggestion covers
+- **Untracked Planning Element**: Queries table 99000855 for safety stock, reorder point, and other portions of suggestions not tracked to specific demand
+- **Order timeline bars**: Shows Starting Date → Ending Date from each Requisition Line to visualize lead time
+
+### Data Pipeline
+```
+Planning Worksheet → EventCollector → ProjectionEngine → DataMarshaller → JSON → Chart.js
+                                    ↓
+                          ExplanationEngine → Explanation Cards
+                                    ↓
+                     CollectSuggestionCoverage → Coverage Bars + Order Timeline
+```
+
 ## [1.2.0] - 2026-02-04
 
 ### Added
@@ -333,6 +389,7 @@ All core calculations have been validated against live Business Central data:
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 1.0.0.12 | 2026-02-21 | Added Planning Worksheet Visualizer with coverage bars and order timeline |
 | 1.2.0 | 2026-02-04 | Added Planning Parameter Suggestions with validated calculations |
 | 1.1.0 | 2026-02-02 | Added CSV Sales Order Import feature with automatic Item creation |
 | 1.0.0 | 2026-02-01 | Initial release with Quality Management and Low Inventory Alert features |
