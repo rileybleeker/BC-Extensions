@@ -6,6 +6,7 @@
     var chartData = null;
     var explanationData = null;
     var showTracking = false;
+    var showCoverage = false;
 
     // --- HTML Structure ---
     function buildUI() {
@@ -30,6 +31,7 @@
             '      <label class="toggle-label"><input type="checkbox" id="chkPlanComp" checked> Planning Components</label>' +
             '      <label class="toggle-label"><input type="checkbox" id="chkForecast" checked> Demand Forecast</label>' +
             '      <label class="toggle-label"><input type="checkbox" id="chkTracking"> Order Tracking</label>' +
+            '      <label class="toggle-label"><input type="checkbox" id="chkCoverage"> Coverage Bars</label>' +
             '    </div>' +
             '    <div class="toolbar-group">' +
             '      <label class="toggle-label">Horizon: ' +
@@ -59,6 +61,11 @@
 
         document.getElementById('chkTracking').addEventListener('change', function () {
             showTracking = this.checked;
+            if (chartInstance) chartInstance.update();
+        });
+
+        document.getElementById('chkCoverage').addEventListener('change', function () {
+            showCoverage = this.checked;
             if (chartInstance) chartInstance.update();
         });
 
@@ -370,7 +377,7 @@
                     }
                 }
             },
-            plugins: [trackingLinesPlugin]
+            plugins: [trackingLinesPlugin, coverageBarsPlugin]
         });
     }
 
@@ -418,6 +425,264 @@
                 }
             }
         }
+        return null;
+    }
+
+    // Custom plugin to draw coverage bars for planning suggestions
+    var coverageBarsPlugin = {
+        id: 'coverageBars',
+        afterDatasetsDraw: function (chart) {
+            if (!showCoverage || !chartData || !chartData.coverageBars || chartData.coverageBars.length === 0) return;
+
+            var ctx = chart.ctx;
+            var xScale = chart.scales.x;
+            var chartArea = chart.chartArea;
+            var barHeight = 14;
+            var innerGap = 2;    // gap between order bar and coverage bar within same order
+            var orderGap = 6;    // gap between different orders
+            var rowHeight = barHeight * 2 + innerGap + orderGap;
+            var baseY = chartArea.bottom - 8;
+
+            chartData.coverageBars.forEach(function (bar, index) {
+                var coverageStartPixel = getPixelForDate(xScale, bar.startDate);
+                var coverageEndPixel = getPixelForDate(xScale, bar.endDate || bar.startDate);
+
+                if (coverageStartPixel === null || coverageEndPixel === null) return;
+                if (coverageEndPixel - coverageStartPixel < 8) coverageEndPixel = coverageStartPixel + 8;
+
+                // Coverage bar position (bottom of the pair)
+                var coverageY = baseY - (index * rowHeight);
+                // Order timeline bar position (above coverage bar)
+                var orderY = coverageY - barHeight - innerGap;
+
+                ctx.save();
+
+                // --- Order Timeline Bar (teal) ---
+                if (bar.orderStartDate || bar.orderEndDate) {
+                    var orderStartPixel = getPixelForDate(xScale, bar.orderStartDate || bar.startDate);
+                    var orderEndPixel = getPixelForDate(xScale, bar.orderEndDate || bar.startDate);
+
+                    if (orderStartPixel !== null && orderEndPixel !== null) {
+                        if (orderEndPixel - orderStartPixel < 8) orderEndPixel = orderStartPixel + 8;
+
+                        // Draw order timeline bar
+                        ctx.fillStyle = 'rgba(23, 162, 184, 0.12)';
+                        ctx.strokeStyle = 'rgba(23, 162, 184, 0.5)';
+                        ctx.lineWidth = 1;
+                        drawRoundedRect(ctx, orderStartPixel, orderY, orderEndPixel - orderStartPixel, barHeight, 3);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Draw start marker (circle)
+                        ctx.fillStyle = 'rgba(23, 162, 184, 0.8)';
+                        ctx.beginPath();
+                        ctx.arc(orderStartPixel + 3, orderY + barHeight / 2, 3, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        // Draw end marker (circle)
+                        ctx.beginPath();
+                        ctx.arc(orderEndPixel - 3, orderY + barHeight / 2, 3, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        // Draw label
+                        ctx.fillStyle = 'rgba(23, 162, 184, 0.9)';
+                        ctx.font = '10px sans-serif';
+                        ctx.textBaseline = 'middle';
+                        var orderLabel = 'Order: ' + (bar.orderStartDate || '') + ' \u2192 ' + (bar.orderEndDate || '');
+                        var orderTextWidth = ctx.measureText(orderLabel).width;
+                        var orderBarWidth = orderEndPixel - orderStartPixel;
+                        if (orderTextWidth + 16 < orderBarWidth) {
+                            ctx.fillText(orderLabel, orderStartPixel + 10, orderY + barHeight / 2);
+                        }
+                    }
+                }
+
+                // --- Coverage Bar (purple) ---
+                // Draw main bar (rounded rectangle)
+                ctx.fillStyle = 'rgba(111, 66, 193, 0.12)';
+                ctx.strokeStyle = 'rgba(111, 66, 193, 0.5)';
+                ctx.lineWidth = 1;
+                drawRoundedRect(ctx, coverageStartPixel, coverageY, coverageEndPixel - coverageStartPixel, barHeight, 3);
+                ctx.fill();
+                ctx.stroke();
+
+                // Draw demand tick marks within the bar
+                (bar.trackedDemand || []).forEach(function (demand) {
+                    var demandPixel = getPixelForDate(xScale, demand.date);
+                    if (demandPixel !== null && demandPixel > coverageStartPixel + 2 && demandPixel < coverageEndPixel - 2) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'rgba(220, 53, 69, 0.5)';
+                        ctx.lineWidth = 1;
+                        ctx.moveTo(demandPixel, coverageY + 2);
+                        ctx.lineTo(demandPixel, coverageY + barHeight - 2);
+                        ctx.stroke();
+                    }
+                });
+
+                // Draw supply diamond at start
+                ctx.fillStyle = 'rgba(111, 66, 193, 0.8)';
+                ctx.beginPath();
+                var d = 4;
+                var midY = coverageY + barHeight / 2;
+                ctx.moveTo(coverageStartPixel, midY - d);
+                ctx.lineTo(coverageStartPixel + d, midY);
+                ctx.lineTo(coverageStartPixel, midY + d);
+                ctx.lineTo(coverageStartPixel - d, midY);
+                ctx.closePath();
+                ctx.fill();
+
+                // Draw label
+                ctx.fillStyle = 'rgba(111, 66, 193, 0.9)';
+                ctx.font = '10px sans-serif';
+                ctx.textBaseline = 'middle';
+                var labelText = formatQty(bar.supplyQty) + ' units';
+                var textWidth = ctx.measureText(labelText).width;
+                var barWidth = coverageEndPixel - coverageStartPixel;
+                if (textWidth + 16 < barWidth) {
+                    ctx.fillText(labelText, coverageStartPixel + 10, midY);
+                }
+
+                ctx.restore();
+            });
+        },
+        afterEvent: function (chart, args) {
+            if (!showCoverage || !chartData || !chartData.coverageBars) return;
+            if (args.event.type !== 'mousemove') return;
+
+            var xScale = chart.scales.x;
+            var chartArea = chart.chartArea;
+            var mouseX = args.event.x;
+            var mouseY = args.event.y;
+            var barHeight = 14;
+            var innerGap = 2;
+            var orderGap = 6;
+            var rowHeight = barHeight * 2 + innerGap + orderGap;
+            var baseY = chartArea.bottom - 8;
+
+            var hoveredBar = null;
+            chartData.coverageBars.forEach(function (bar, index) {
+                var coverageY = baseY - (index * rowHeight);
+                var orderY = coverageY - barHeight - innerGap;
+
+                // Hit-test coverage bar
+                var startPixel = getPixelForDate(xScale, bar.startDate);
+                var endPixel = getPixelForDate(xScale, bar.endDate || bar.startDate);
+                if (startPixel !== null && endPixel !== null) {
+                    if (endPixel - startPixel < 8) endPixel = startPixel + 8;
+                    if (mouseX >= startPixel && mouseX <= endPixel &&
+                        mouseY >= coverageY && mouseY <= coverageY + barHeight) {
+                        hoveredBar = bar;
+                    }
+                }
+
+                // Hit-test order timeline bar
+                if (!hoveredBar && (bar.orderStartDate || bar.orderEndDate)) {
+                    var oStartPixel = getPixelForDate(xScale, bar.orderStartDate || bar.startDate);
+                    var oEndPixel = getPixelForDate(xScale, bar.orderEndDate || bar.startDate);
+                    if (oStartPixel !== null && oEndPixel !== null) {
+                        if (oEndPixel - oStartPixel < 8) oEndPixel = oStartPixel + 8;
+                        if (mouseX >= oStartPixel && mouseX <= oEndPixel &&
+                            mouseY >= orderY && mouseY <= orderY + barHeight) {
+                            hoveredBar = bar;
+                        }
+                    }
+                }
+            });
+
+            var tooltipEl = document.getElementById('coverage-tooltip');
+            if (hoveredBar) {
+                if (!tooltipEl) {
+                    tooltipEl = document.createElement('div');
+                    tooltipEl.id = 'coverage-tooltip';
+                    tooltipEl.className = 'coverage-tooltip';
+                    document.getElementById('chart-container').appendChild(tooltipEl);
+                }
+                var html = '<strong>Coverage: ' + formatQty(hoveredBar.supplyQty) +
+                    ' units (' + escapeHtml(hoveredBar.actionMessage) + ')</strong><br>';
+
+                if (hoveredBar.orderStartDate || hoveredBar.orderEndDate) {
+                    html += '<span class="coverage-dates">Order: ' +
+                        (hoveredBar.orderStartDate || '?') + ' \u2192 ' +
+                        (hoveredBar.orderEndDate || '?') + '</span><br>';
+                }
+
+                html += '<span class="coverage-dates">Covers demand: ' + hoveredBar.startDate +
+                    ' \u2192 ' + (hoveredBar.endDate || hoveredBar.startDate) + '</span>';
+
+                if (hoveredBar.trackedDemand && hoveredBar.trackedDemand.length > 0) {
+                    html += '<div class="coverage-section"><em>Tracked Demand:</em>';
+                    hoveredBar.trackedDemand.forEach(function (dd) {
+                        html += '<div class="coverage-line">\u2022 ' + dd.date +
+                            ': ' + formatQty(dd.qty) + ' \u2014 ' + escapeHtml(dd.source) + '</div>';
+                    });
+                    html += '</div>';
+                }
+                if (hoveredBar.untrackedElements && hoveredBar.untrackedElements.length > 0) {
+                    html += '<div class="coverage-section"><em>Untracked:</em>';
+                    hoveredBar.untrackedElements.forEach(function (u) {
+                        html += '<div class="coverage-line">\u2022 ' + escapeHtml(u.source) +
+                            ': ' + formatQty(u.qty) + '</div>';
+                    });
+                    html += '</div>';
+                }
+
+                tooltipEl.innerHTML = html;
+                tooltipEl.style.display = 'block';
+                tooltipEl.style.left = (mouseX + 15) + 'px';
+                tooltipEl.style.top = (mouseY - 10) + 'px';
+            } else if (tooltipEl) {
+                tooltipEl.style.display = 'none';
+            }
+        }
+    };
+
+    function drawRoundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.arcTo(x + w, y, x + w, y + r, r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+        ctx.lineTo(x + r, y + h);
+        ctx.arcTo(x, y + h, x, y + h - r, r);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.closePath();
+    }
+
+    function getPixelForDate(xScale, dateStr) {
+        if (!dateStr) return null;
+        // Chart.js 4.x category scale: try direct label lookup
+        var labels = xScale.getLabels();
+        var idx = labels.indexOf(dateStr);
+        if (idx !== -1) {
+            return xScale.getPixelForValue(idx);
+        }
+        // Interpolate between nearest known dates
+        return interpolatePixelForDate(xScale, labels, dateStr);
+    }
+
+    function interpolatePixelForDate(xScale, labels, dateStr) {
+        var targetTime = new Date(dateStr).getTime();
+        if (isNaN(targetTime)) return null;
+        if (labels.length === 0) return null;
+
+        var prevIdx = -1, nextIdx = -1;
+        var prevTime = -Infinity, nextTime = Infinity;
+
+        for (var i = 0; i < labels.length; i++) {
+            var t = new Date(labels[i]).getTime();
+            if (isNaN(t)) continue;
+            if (t <= targetTime && t > prevTime) { prevIdx = i; prevTime = t; }
+            if (t >= targetTime && t < nextTime) { nextIdx = i; nextTime = t; }
+        }
+
+        if (prevIdx !== -1 && nextIdx !== -1 && prevIdx !== nextIdx) {
+            var ratio = (targetTime - prevTime) / (nextTime - prevTime);
+            return xScale.getPixelForValue(prevIdx) + ratio * (xScale.getPixelForValue(nextIdx) - xScale.getPixelForValue(prevIdx));
+        }
+        if (prevIdx !== -1) return xScale.getPixelForValue(prevIdx);
+        if (nextIdx !== -1) return xScale.getPixelForValue(nextIdx);
         return null;
     }
 
@@ -534,6 +799,13 @@
     window.ShowTrackingLines = function (visible) {
         showTracking = visible;
         var chk = document.getElementById('chkTracking');
+        if (chk) chk.checked = visible;
+        if (chartInstance) chartInstance.update();
+    };
+
+    window.ShowCoverageBars = function (visible) {
+        showCoverage = visible;
+        var chk = document.getElementById('chkCoverage');
         if (chk) chk.checked = visible;
         if (chartInstance) chartInstance.update();
     };

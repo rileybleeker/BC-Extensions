@@ -27,6 +27,7 @@ controladdin "Planning Visualizer Chart"
     procedure ToggleProjection(ShowBefore: Boolean; ShowAfter: Boolean);
     procedure HighlightEvent(EntryNo: Integer);
     procedure ShowTrackingLines(Visible: Boolean);
+    procedure ShowCoverageBars(Visible: Boolean);
 
     // JS -> AL events
     event OnAddinReady();

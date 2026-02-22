@@ -231,3 +231,46 @@
 .expand-btn:hover {
     color: #0056b3;
 }
+
+/* --- Coverage Bars Tooltip --- */
+.coverage-tooltip {
+    display: none;
+    position: absolute;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid rgba(111, 66, 193, 0.5);
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #212529;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+    z-index: 100;
+    max-width: 400px;
+    pointer-events: none;
+    line-height: 1.5;
+}
+
+.coverage-tooltip strong {
+    color: #6f42c1;
+}
+
+.coverage-dates {
+    font-size: 11px;
+    color: #6c757d;
+}
+
+.coverage-section {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid #e9ecef;
+}
+
+.coverage-section em {
+    font-size: 11px;
+    color: #495057;
+}
+
+.coverage-line {
+    font-size: 11px;
+    color: #495057;
+    padding-left: 4px;
+}

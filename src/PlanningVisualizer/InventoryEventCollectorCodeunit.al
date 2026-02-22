@@ -38,7 +38,7 @@ codeunit 50160 "Inventory Event Collector"
         CollectPlanningComponents(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
         CollectBlanketSalesOrders(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
 
-        // Informational demand sources (not included in running totals)
+        // Demand forecast (included in running totals as real demand)
         CollectDemandForecast(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
 
         // Supply sources
@@ -429,10 +429,6 @@ codeunit 50160 "Inventory Event Collector"
                     0, '', 0,
                     Page::"Demand Forecast Names"
                 );
-                // Mark as informational so it's excluded from running totals
-                TempEventBuffer.Get(NextEntryNo);
-                TempEventBuffer."Is Informational" := true;
-                TempEventBuffer.Modify();
             until ProdForecastEntry.Next() = 0;
     end;
 
@@ -898,6 +894,158 @@ codeunit 50160 "Inventory Event Collector"
                 exit(Page::"Released Production Order");
             else
                 exit(Page::"Released Production Order");
+        end;
+    end;
+
+    procedure CollectSuggestionCoverage(
+        ItemNo: Code[20];
+        LocationCode: Code[10];
+        VariantCode: Code[10];
+        WorksheetTemplateName: Code[10];
+        JournalBatchName: Code[10];
+        var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
+        var TempCoverageBuffer: Record "Suggestion Coverage Buffer" temporary
+    )
+    var
+        ReqLine: Record "Requisition Line";
+        ReservEntry: Record "Reservation Entry";
+        PairedEntry: Record "Reservation Entry";
+        UntrackedElement: Record "Untracked Planning Element";
+        CoverageEntryNo: Integer;
+        DemandDate: Date;
+        DemandSourceText: Text[100];
+        DemandBufferEntryNo: Integer;
+    begin
+        TempCoverageBuffer.Reset();
+        TempCoverageBuffer.DeleteAll();
+        CoverageEntryNo := 0;
+
+        ReqLine.SetRange("Worksheet Template Name", WorksheetTemplateName);
+        ReqLine.SetRange("Journal Batch Name", JournalBatchName);
+        ReqLine.SetRange(Type, ReqLine.Type::Item);
+        ReqLine.SetRange("No.", ItemNo);
+        if LocationCode <> '' then
+            ReqLine.SetRange("Location Code", LocationCode);
+        if VariantCode <> '' then
+            ReqLine.SetRange("Variant Code", VariantCode);
+
+        if ReqLine.FindSet() then
+            repeat
+                if ReqLine."Action Message" = ReqLine."Action Message"::New then begin
+                    // Find tracked demand via Reservation Entry
+                    ReservEntry.Reset();
+                    ReservEntry.SetRange("Item No.", ItemNo);
+                    ReservEntry.SetRange("Reservation Status", ReservEntry."Reservation Status"::Tracking);
+                    ReservEntry.SetRange("Source Type", 246); // Requisition Line
+                    ReservEntry.SetRange("Source Subtype", 0);
+                    ReservEntry.SetRange("Source ID", WorksheetTemplateName);
+                    ReservEntry.SetRange("Source Batch Name", JournalBatchName);
+                    ReservEntry.SetRange("Source Ref. No.", ReqLine."Line No.");
+                    ReservEntry.SetFilter("Quantity (Base)", '>0');
+
+                    if ReservEntry.FindSet() then
+                        repeat
+                            PairedEntry.Reset();
+                            PairedEntry.SetRange("Entry No.", ReservEntry."Entry No.");
+                            PairedEntry.SetFilter("Quantity (Base)", '<0');
+                            if PairedEntry.FindFirst() then begin
+                                // Try to find the demand event in our buffer for accurate date/description
+                                DemandBufferEntryNo := FindBufferEntryBySource(
+                                    TempEventBuffer,
+                                    PairedEntry."Source Type",
+                                    PairedEntry."Source ID",
+                                    PairedEntry."Source Ref. No."
+                                );
+
+                                if DemandBufferEntryNo <> 0 then begin
+                                    TempEventBuffer.Get(DemandBufferEntryNo);
+                                    DemandDate := TempEventBuffer."Event Date";
+                                    DemandSourceText := TempEventBuffer."Source Description";
+                                end else begin
+                                    DemandDate := PairedEntry."Shipment Date";
+                                    if DemandDate = 0D then
+                                        DemandDate := PairedEntry."Expected Receipt Date";
+                                    DemandSourceText := GetDemandSourceText(
+                                        PairedEntry."Source Type",
+                                        PairedEntry."Source ID",
+                                        PairedEntry."Source Ref. No."
+                                    );
+                                end;
+
+                                CoverageEntryNo += 1;
+                                TempCoverageBuffer.Init();
+                                TempCoverageBuffer."Entry No." := CoverageEntryNo;
+                                TempCoverageBuffer."Req. Line No." := ReqLine."Line No.";
+                                TempCoverageBuffer."Supply Date" := ReqLine."Due Date";
+                                TempCoverageBuffer."Supply Qty" := ReqLine.Quantity;
+                                TempCoverageBuffer."Action Message" := Format(ReqLine."Action Message");
+                                TempCoverageBuffer."Order Starting Date" := ReqLine."Starting Date";
+                                TempCoverageBuffer."Order Ending Date" := ReqLine."Ending Date";
+                                TempCoverageBuffer."Demand Date" := DemandDate;
+                                TempCoverageBuffer."Demand Qty" := Abs(PairedEntry."Quantity (Base)");
+                                TempCoverageBuffer."Demand Source" := DemandSourceText;
+                                TempCoverageBuffer."Is Untracked" := false;
+                                TempCoverageBuffer.Insert();
+                            end;
+                        until ReservEntry.Next() = 0;
+
+                    // Find untracked planning elements
+                    UntrackedElement.Reset();
+                    UntrackedElement.SetRange("Worksheet Template Name", WorksheetTemplateName);
+                    UntrackedElement.SetRange("Worksheet Batch Name", JournalBatchName);
+                    UntrackedElement.SetRange("Worksheet Line No.", ReqLine."Line No.");
+                    UntrackedElement.SetRange("Item No.", ItemNo);
+
+                    if UntrackedElement.FindSet() then
+                        repeat
+                            if UntrackedElement."Untracked Quantity" <> 0 then begin
+                                CoverageEntryNo += 1;
+                                TempCoverageBuffer.Init();
+                                TempCoverageBuffer."Entry No." := CoverageEntryNo;
+                                TempCoverageBuffer."Req. Line No." := ReqLine."Line No.";
+                                TempCoverageBuffer."Supply Date" := ReqLine."Due Date";
+                                TempCoverageBuffer."Supply Qty" := ReqLine.Quantity;
+                                TempCoverageBuffer."Action Message" := Format(ReqLine."Action Message");
+                                TempCoverageBuffer."Order Starting Date" := ReqLine."Starting Date";
+                                TempCoverageBuffer."Order Ending Date" := ReqLine."Ending Date";
+                                TempCoverageBuffer."Demand Date" := 0D;
+                                TempCoverageBuffer."Demand Qty" := UntrackedElement."Untracked Quantity";
+                                TempCoverageBuffer."Demand Source" := '';
+                                TempCoverageBuffer."Is Untracked" := true;
+                                TempCoverageBuffer."Untracked Source" :=
+                                    CopyStr(UntrackedElement.Source, 1, 100);
+                                TempCoverageBuffer.Insert();
+                            end;
+                        until UntrackedElement.Next() = 0;
+                end;
+            until ReqLine.Next() = 0;
+    end;
+
+    local procedure GetDemandSourceText(
+        SourceType: Integer;
+        SourceId: Code[20];
+        SourceRefNo: Integer
+    ): Text[100]
+    begin
+        case SourceType of
+            37: // Sales Line
+                exit(CopyStr(StrSubstNo('Sales Order %1, Line %2', SourceId, SourceRefNo), 1, 100));
+            5407: // Prod. Order Component
+                exit(CopyStr(StrSubstNo('Prod. Order Comp %1, Line %2', SourceId, SourceRefNo), 1, 100));
+            901: // Assembly Line
+                exit(CopyStr(StrSubstNo('Assembly Comp %1, Line %2', SourceId, SourceRefNo), 1, 100));
+            5741: // Transfer Line
+                exit(CopyStr(StrSubstNo('Transfer %1, Line %2', SourceId, SourceRefNo), 1, 100));
+            5902: // Service Line
+                exit(CopyStr(StrSubstNo('Service Order %1, Line %2', SourceId, SourceRefNo), 1, 100));
+            1003: // Job Planning Line
+                exit(CopyStr(StrSubstNo('Job %1, Line %2', SourceId, SourceRefNo), 1, 100));
+            246: // Requisition Line
+                exit(CopyStr(StrSubstNo('Req. Line %1, Line %2', SourceId, SourceRefNo), 1, 100));
+            99000852: // Production Forecast Entry
+                exit(CopyStr(StrSubstNo('Demand Forecast %1', SourceId), 1, 100));
+            else
+                exit(CopyStr(StrSubstNo('Source %1: %2, Line %3', SourceType, SourceId, SourceRefNo), 1, 100));
         end;
     end;
 }

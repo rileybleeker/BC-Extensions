@@ -4,6 +4,7 @@ codeunit 50163 "Visualizer Data Marshaller"
 
     procedure BuildChartDataJSON(
         var TempEventBuffer: Record "Visualizer Event Buffer" temporary;
+        var TempCoverageBuffer: Record "Suggestion Coverage Buffer" temporary;
         ReorderPoint: Decimal;
         SafetyStock: Decimal;
         MaxInventory: Decimal;
@@ -105,6 +106,9 @@ codeunit 50163 "Visualizer Data Marshaller"
         RootObj.Add('projectionAfter', ProjectionAfterArr);
         RootObj.Add('trackingPairs', TrackingArr);
 
+        // Coverage bars
+        RootObj.Add('coverageBars', BuildCoverageArray(TempCoverageBuffer));
+
         RootObj.WriteTo(ResultText);
         exit(ResultText);
     end;
@@ -140,6 +144,90 @@ codeunit 50163 "Visualizer Data Marshaller"
         RootObj.Add('explanations', ExplanationsArr);
         RootObj.WriteTo(ResultText);
         exit(ResultText);
+    end;
+
+    local procedure BuildCoverageArray(
+        var TempCoverageBuffer: Record "Suggestion Coverage Buffer" temporary
+    ): JsonArray
+    var
+        CoverageArr: JsonArray;
+        CoverageObj: JsonObject;
+        TrackedArr: JsonArray;
+        TrackedObj: JsonObject;
+        UntrackedArr: JsonArray;
+        UntrackedObj: JsonObject;
+        CurrentReqLineNo: Integer;
+        LatestDemandDate: Date;
+        HasData: Boolean;
+    begin
+        CurrentReqLineNo := 0;
+        HasData := false;
+
+        TempCoverageBuffer.Reset();
+        TempCoverageBuffer.SetCurrentKey("Req. Line No.", "Demand Date");
+
+        if TempCoverageBuffer.FindSet() then
+            repeat
+                if TempCoverageBuffer."Req. Line No." <> CurrentReqLineNo then begin
+                    // Flush previous group
+                    if HasData then begin
+                        CoverageObj.Add('trackedDemand', TrackedArr);
+                        CoverageObj.Add('untrackedElements', UntrackedArr);
+                        if LatestDemandDate <> 0D then
+                            CoverageObj.Add('endDate', Format(LatestDemandDate, 0, '<Year4>-<Month,2>-<Day,2>'));
+                        CoverageArr.Add(CoverageObj);
+                    end;
+
+                    // Start new group
+                    HasData := true;
+                    CurrentReqLineNo := TempCoverageBuffer."Req. Line No.";
+                    LatestDemandDate := TempCoverageBuffer."Supply Date";
+                    Clear(CoverageObj);
+                    Clear(TrackedArr);
+                    Clear(UntrackedArr);
+                    CoverageObj.Add('reqLineNo', TempCoverageBuffer."Req. Line No.");
+                    CoverageObj.Add('supplyDate',
+                        Format(TempCoverageBuffer."Supply Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+                    CoverageObj.Add('supplyQty', TempCoverageBuffer."Supply Qty");
+                    CoverageObj.Add('actionMessage', TempCoverageBuffer."Action Message");
+                    if TempCoverageBuffer."Order Starting Date" <> 0D then
+                        CoverageObj.Add('orderStartDate',
+                            Format(TempCoverageBuffer."Order Starting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+                    if TempCoverageBuffer."Order Ending Date" <> 0D then
+                        CoverageObj.Add('orderEndDate',
+                            Format(TempCoverageBuffer."Order Ending Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+                    CoverageObj.Add('startDate',
+                        Format(TempCoverageBuffer."Supply Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+                end;
+
+                if TempCoverageBuffer."Is Untracked" then begin
+                    Clear(UntrackedObj);
+                    UntrackedObj.Add('source', TempCoverageBuffer."Untracked Source");
+                    UntrackedObj.Add('qty', TempCoverageBuffer."Demand Qty");
+                    UntrackedArr.Add(UntrackedObj);
+                end else begin
+                    Clear(TrackedObj);
+                    TrackedObj.Add('date',
+                        Format(TempCoverageBuffer."Demand Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+                    TrackedObj.Add('qty', TempCoverageBuffer."Demand Qty");
+                    TrackedObj.Add('source', TempCoverageBuffer."Demand Source");
+                    TrackedArr.Add(TrackedObj);
+
+                    if TempCoverageBuffer."Demand Date" > LatestDemandDate then
+                        LatestDemandDate := TempCoverageBuffer."Demand Date";
+                end;
+            until TempCoverageBuffer.Next() = 0;
+
+        // Flush last group
+        if HasData then begin
+            CoverageObj.Add('trackedDemand', TrackedArr);
+            CoverageObj.Add('untrackedElements', UntrackedArr);
+            if LatestDemandDate <> 0D then
+                CoverageObj.Add('endDate', Format(LatestDemandDate, 0, '<Year4>-<Month,2>-<Day,2>'));
+            CoverageArr.Add(CoverageObj);
+        end;
+
+        exit(CoverageArr);
     end;
 
     local procedure UpdateLastProjectionPoint(var ProjectionArr: JsonArray; NewBalance: Decimal)

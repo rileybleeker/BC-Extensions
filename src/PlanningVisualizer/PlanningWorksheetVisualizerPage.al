@@ -160,6 +160,7 @@ page 50160 "Planning Worksheet Visualizer"
     var
         TempEventBuffer: Record "Visualizer Event Buffer" temporary;
         TempExplanation: Record "Planning Explanation" temporary;
+        TempCoverageBuffer: Record "Suggestion Coverage Buffer" temporary;
         EventCollector: Codeunit "Inventory Event Collector";
         ProjectionEngine: Codeunit "Inventory Projection Engine";
         ExplanationEngine: Codeunit "Planning Explanation Engine";
@@ -204,9 +205,16 @@ page 50160 "Planning Worksheet Visualizer"
             TempEventBuffer, TempExplanation
         );
 
+        // Step 4b: Collect suggestion coverage data
+        EventCollector.CollectSuggestionCoverage(
+            ItemNo, LocationCode, VariantCode,
+            WorksheetTemplateName, JournalBatchName,
+            TempEventBuffer, TempCoverageBuffer
+        );
+
         // Step 5: Marshal to JSON
         ChartJson := Marshaller.BuildChartDataJSON(
-            TempEventBuffer,
+            TempEventBuffer, TempCoverageBuffer,
             ReorderPoint, SafetyStockQty, MaxInventory,
             ReorderQty, LeadTimeDays, ReorderingPolicyText
         );
