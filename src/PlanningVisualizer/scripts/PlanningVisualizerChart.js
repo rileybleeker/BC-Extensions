@@ -286,7 +286,7 @@
                         borderWidth: 2,
                         order: 0
                     },
-                    // Dataset 7: Demand Forecast (informational, not in running totals)
+                    // Dataset 7: Demand Forecast (real demand, included in running totals)
                     {
                         label: 'Demand Forecast',
                         data: forecastPoints,

@@ -405,21 +405,35 @@ codeunit 50160 "Inventory Event Collector"
     )
     var
         ProdForecastEntry: Record "Production Forecast Entry";
+        EventDate: Date;
+        LookbackDate: Date;
     begin
+        // Look back up to 1 year to capture monthly/weekly forecasts whose period
+        // started before Today but whose demand is still active in the planning horizon.
+        // BC's planning engine considers these as active demand; we must do the same.
+        // Entries with Forecast Date before StartDate are placed on StartDate so they
+        // affect the projected inventory from the chart's first day.
+        LookbackDate := CalcDate('<-1Y>', StartDate);
         ProdForecastEntry.SetRange("Item No.", ItemNo);
-        ProdForecastEntry.SetRange("Forecast Date", StartDate, EndDate);
+        ProdForecastEntry.SetRange("Forecast Date", LookbackDate, EndDate);
         ProdForecastEntry.SetFilter("Forecast Quantity (Base)", '>0');
+        // Include both location-specific AND blank-location (global) forecasts.
+        // BC's planning engine considers global forecasts for all locations.
         if LocationCode <> '' then
-            ProdForecastEntry.SetRange("Location Code", LocationCode);
+            ProdForecastEntry.SetFilter("Location Code", '%1|%2', LocationCode, '');
         if VariantCode <> '' then
-            ProdForecastEntry.SetRange("Variant Code", VariantCode);
+            ProdForecastEntry.SetFilter("Variant Code", '%1|%2', VariantCode, '');
 
         if ProdForecastEntry.FindSet() then
             repeat
+                EventDate := ProdForecastEntry."Forecast Date";
+                if EventDate < StartDate then
+                    EventDate := StartDate;
+
                 InsertEvent(
                     TempEventBuffer,
                     ItemNo, ProdForecastEntry."Location Code", ProdForecastEntry."Variant Code",
-                    ProdForecastEntry."Forecast Date",
+                    EventDate,
                     "Inventory Event Type"::"Demand Forecast",
                     -ProdForecastEntry."Forecast Quantity (Base)",
                     false,

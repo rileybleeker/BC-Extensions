@@ -25,6 +25,8 @@ codeunit 50163 "Visualizer Data Marshaller"
         TrackingObj: JsonObject;
         LastBeforeDate: Date;
         LastAfterDate: Date;
+        RunningBefore: Decimal;
+        RunningAfter: Decimal;
         ResultText: Text;
     begin
         // Thresholds
@@ -39,15 +41,25 @@ codeunit 50163 "Visualizer Data Marshaller"
         PlanningParamsObj.Add('leadTimeDays', LeadTimeDays);
         RootObj.Add('planningParams', PlanningParamsObj);
 
-        // Events and projections
+        // Events and projections - compute running totals inline to avoid
+        // dependency on pre-computed values from the projection engine
         TempEventBuffer.Reset();
         TempEventBuffer.SetCurrentKey("Event Date", "Entry No.");
 
         LastBeforeDate := 0D;
         LastAfterDate := 0D;
+        RunningBefore := 0;
+        RunningAfter := 0;
 
         if TempEventBuffer.FindSet() then
             repeat
+                // Compute running totals inline
+                if not TempEventBuffer."Is Informational" then begin
+                    RunningAfter += TempEventBuffer.Quantity;
+                    if not TempEventBuffer."Is Suggestion" then
+                        RunningBefore += TempEventBuffer.Quantity;
+                end;
+
                 // Event data
                 Clear(EventObj);
                 EventObj.Add('entryNo', TempEventBuffer."Entry No.");
@@ -62,33 +74,32 @@ codeunit 50163 "Visualizer Data Marshaller"
                 EventObj.Add('sourceDocNo', TempEventBuffer."Source Document No.");
                 EventObj.Add('sourceLineNo', TempEventBuffer."Source Line No.");
                 EventObj.Add('actionMessage', TempEventBuffer."Action Message");
-                EventObj.Add('balanceBefore', TempEventBuffer."Running Total Before");
-                EventObj.Add('balanceAfter', TempEventBuffer."Running Total After");
+                EventObj.Add('balanceBefore', RunningBefore);
+                EventObj.Add('balanceAfter', RunningAfter);
                 if TempEventBuffer."Tracked Against Entry No." <> 0 then
                     EventObj.Add('trackedAgainst', TempEventBuffer."Tracked Against Entry No.");
                 EventsArr.Add(EventObj);
 
-                // Before projection points (only add when balance changes)
+                // Before projection points
                 if TempEventBuffer."Event Date" <> LastBeforeDate then begin
                     Clear(ProjectionObj);
                     ProjectionObj.Add('date', Format(TempEventBuffer."Event Date", 0, '<Year4>-<Month,2>-<Day,2>'));
-                    ProjectionObj.Add('balance', TempEventBuffer."Running Total Before");
+                    ProjectionObj.Add('balance', RunningBefore);
                     ProjectionBeforeArr.Add(ProjectionObj);
                     LastBeforeDate := TempEventBuffer."Event Date";
                 end else begin
-                    // Update the last projection point if multiple events on same date
-                    UpdateLastProjectionPoint(ProjectionBeforeArr, TempEventBuffer."Running Total Before");
+                    UpdateLastProjectionPoint(ProjectionBeforeArr, RunningBefore);
                 end;
 
                 // After projection points
                 if TempEventBuffer."Event Date" <> LastAfterDate then begin
                     Clear(ProjectionObj);
                     ProjectionObj.Add('date', Format(TempEventBuffer."Event Date", 0, '<Year4>-<Month,2>-<Day,2>'));
-                    ProjectionObj.Add('balance', TempEventBuffer."Running Total After");
+                    ProjectionObj.Add('balance', RunningAfter);
                     ProjectionAfterArr.Add(ProjectionObj);
                     LastAfterDate := TempEventBuffer."Event Date";
                 end else begin
-                    UpdateLastProjectionPoint(ProjectionAfterArr, TempEventBuffer."Running Total After");
+                    UpdateLastProjectionPoint(ProjectionAfterArr, RunningAfter);
                 end;
 
                 // Tracking pairs
