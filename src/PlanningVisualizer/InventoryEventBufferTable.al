@@ -37,19 +37,25 @@ table 50160 "Visualizer Event Buffer"
         }
         field(13; "Running Total Before"; Decimal)
         {
-            Caption = 'Running Total (Before Suggestions)';
+            Caption = 'Running Total (Projected Available Balance)';
             DecimalPlaces = 0 : 5;
             Editable = false;
         }
         field(14; "Running Total After"; Decimal)
         {
-            Caption = 'Running Total (After Suggestions)';
+            Caption = 'Running Total (Suggested Projected Inventory)';
             DecimalPlaces = 0 : 5;
             Editable = false;
         }
         field(15; "Is Suggestion"; Boolean)
         {
             Caption = 'Is Planning Suggestion';
+        }
+        field(16; "Running Total Forecasted"; Decimal)
+        {
+            Caption = 'Running Total (Forecasted Projected Inventory)';
+            DecimalPlaces = 0 : 5;
+            Editable = false;
         }
         field(20; "Source Document Type"; Integer)
         {

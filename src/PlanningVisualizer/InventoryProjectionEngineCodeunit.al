@@ -1,36 +1,43 @@
 codeunit 50161 "Inventory Projection Engine"
 {
-    // Calculates running inventory totals (before/after suggestions) and reads planning parameters
+    // Calculates three running inventory totals and reads planning parameters
+    //   PAB (Before)     = actual supply/demand only (excludes forecast + suggestions)
+    //   Forecasted        = actual + forecast (excludes suggestions)
+    //   Suggested (After) = actual + forecast + suggestions (everything)
 
     procedure CalculateProjections(
         var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
-        RunningBefore: Decimal;
-        RunningAfter: Decimal;
+        RunningPAB: Decimal;
+        RunningForecasted: Decimal;
+        RunningSuggested: Decimal;
     begin
-        RunningBefore := 0;
-        RunningAfter := 0;
+        RunningPAB := 0;
+        RunningForecasted := 0;
+        RunningSuggested := 0;
 
         TempEventBuffer.Reset();
         TempEventBuffer.SetCurrentKey("Event Date", "Entry No.");
 
-        // Single pass: calculate both projections
+        // Single pass: calculate all three projections
         if TempEventBuffer.FindSet() then
             repeat
-                // Informational events (e.g. demand forecast) are displayed but
-                // excluded from running totals to avoid double-counting
-                if not TempEventBuffer."Is Informational" then begin
-                    // "After" includes all non-informational events
-                    RunningAfter += TempEventBuffer.Quantity;
+                // Suggested Projected Inventory = everything (actual + forecast + suggestions)
+                RunningSuggested += TempEventBuffer.Quantity;
 
-                    // "Before" also excludes planning suggestions
-                    if not TempEventBuffer."Is Suggestion" then
-                        RunningBefore += TempEventBuffer.Quantity;
-                end;
+                // Forecasted Projected Inventory = actual + forecast (excludes suggestions)
+                if not TempEventBuffer."Is Suggestion" then
+                    RunningForecasted += TempEventBuffer.Quantity;
 
-                TempEventBuffer."Running Total Before" := RunningBefore;
-                TempEventBuffer."Running Total After" := RunningAfter;
+                // Projected Available Balance = actual only (excludes forecast + suggestions)
+                if (not TempEventBuffer."Is Informational") and
+                   (not TempEventBuffer."Is Suggestion") then
+                    RunningPAB += TempEventBuffer.Quantity;
+
+                TempEventBuffer."Running Total Before" := RunningPAB;
+                TempEventBuffer."Running Total Forecasted" := RunningForecasted;
+                TempEventBuffer."Running Total After" := RunningSuggested;
                 TempEventBuffer.Modify();
             until TempEventBuffer.Next() = 0;
     end;

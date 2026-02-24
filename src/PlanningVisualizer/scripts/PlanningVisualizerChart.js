@@ -8,6 +8,17 @@
     var showTracking = false;
     var showCoverage = false;
 
+    // Dataset index constants
+    var DS_PAB = 0;              // Projected Available Balance
+    var DS_FORECASTED = 1;       // Forecasted Projected Inventory
+    var DS_SUGGESTED = 2;        // Suggested Projected Inventory
+    var DS_SUPPLY = 3;           // Existing Supply scatter
+    var DS_DEMAND = 4;           // Demand scatter
+    var DS_SUGG_SUPPLY = 5;      // Suggested Supply scatter
+    var DS_PENDING = 6;          // Pending Req. Lines scatter
+    var DS_PLAN_COMP = 7;        // Planning Components scatter
+    var DS_FORECAST = 8;         // Demand Forecast scatter
+
     // --- HTML Structure ---
     function buildUI() {
         var container = document.getElementById('controlAddIn');
@@ -20,8 +31,9 @@
             '<div id="visualizer-root">' +
             '  <div id="chart-toolbar">' +
             '    <div class="toolbar-group">' +
-            '      <label class="toggle-label"><input type="checkbox" id="chkBefore" checked> Before Suggestions</label>' +
-            '      <label class="toggle-label"><input type="checkbox" id="chkAfter" checked> After Suggestions</label>' +
+            '      <label class="toggle-label"><input type="checkbox" id="chkPAB"> Projected Available Balance</label>' +
+            '      <label class="toggle-label"><input type="checkbox" id="chkForecasted"> Forecasted Projected Inventory</label>' +
+            '      <label class="toggle-label"><input type="checkbox" id="chkSuggestedLine" checked> Suggested Projected Inventory</label>' +
             '    </div>' +
             '    <div class="toolbar-group">' +
             '      <label class="toggle-label"><input type="checkbox" id="chkExisting" checked> Existing Supply</label>' +
@@ -49,15 +61,18 @@
             '  <div id="explanation-panel"></div>' +
             '</div>';
 
-        // Bind toggle events
-        bindToggle('chkBefore', 0);
-        bindToggle('chkAfter', 1);
-        bindToggle('chkExisting', 2);
-        bindToggle('chkDemand', 3);
-        bindToggle('chkSuggested', 4);
-        bindToggle('chkPending', 5);
-        bindToggle('chkPlanComp', 6);
-        bindToggle('chkForecast', 7);
+        // Bind toggle events for projection lines
+        bindToggle('chkPAB', DS_PAB);
+        bindToggle('chkForecasted', DS_FORECASTED);
+        bindToggle('chkSuggestedLine', DS_SUGGESTED);
+
+        // Bind toggle events for scatter datasets
+        bindToggle('chkExisting', DS_SUPPLY);
+        bindToggle('chkDemand', DS_DEMAND);
+        bindToggle('chkSuggested', DS_SUGG_SUPPLY);
+        bindToggle('chkPending', DS_PENDING);
+        bindToggle('chkPlanComp', DS_PLAN_COMP);
+        bindToggle('chkForecast', DS_FORECAST);
 
         document.getElementById('chkTracking').addEventListener('change', function () {
             showTracking = this.checked;
@@ -89,10 +104,13 @@
         var ctx = document.getElementById('projectionChart').getContext('2d');
 
         // Prepare projection data
-        var beforeData = (data.projectionBefore || []).map(function (p) {
+        var pabData = (data.projectionBefore || []).map(function (p) {
             return { x: p.date, y: p.balance };
         });
-        var afterData = (data.projectionAfter || []).map(function (p) {
+        var forecastedData = (data.projectionForecasted || []).map(function (p) {
+            return { x: p.date, y: p.balance };
+        });
+        var suggestedData = (data.projectionAfter || []).map(function (p) {
             return { x: p.date, y: p.balance };
         });
 
@@ -181,10 +199,10 @@
             type: 'line',
             data: {
                 datasets: [
-                    // Dataset 0: Before Suggestions
+                    // Dataset 0 (DS_PAB): Projected Available Balance
                     {
-                        label: 'Before Suggestions',
-                        data: beforeData,
+                        label: 'Projected Available Balance',
+                        data: pabData,
                         stepped: 'before',
                         borderColor: 'rgba(100, 149, 237, 0.5)',
                         borderWidth: 2,
@@ -192,12 +210,27 @@
                         fill: false,
                         pointRadius: 0,
                         pointHitRadius: 0,
-                        order: 3
+                        order: 4,
+                        hidden: true
                     },
-                    // Dataset 1: After Suggestions
+                    // Dataset 1 (DS_FORECASTED): Forecasted Projected Inventory
                     {
-                        label: 'After Suggestions',
-                        data: afterData,
+                        label: 'Forecasted Projected Inventory',
+                        data: forecastedData,
+                        stepped: 'before',
+                        borderColor: 'rgba(218, 165, 32, 0.7)',
+                        borderWidth: 2,
+                        borderDash: [4, 3],
+                        fill: false,
+                        pointRadius: 0,
+                        pointHitRadius: 0,
+                        order: 3,
+                        hidden: true
+                    },
+                    // Dataset 2 (DS_SUGGESTED): Suggested Projected Inventory
+                    {
+                        label: 'Suggested Projected Inventory',
+                        data: suggestedData,
                         stepped: 'before',
                         borderColor: 'rgba(30, 80, 200, 1)',
                         borderWidth: 2,
@@ -218,7 +251,7 @@
                         pointHitRadius: 0,
                         order: 2
                     },
-                    // Dataset 2: Supply Events
+                    // Dataset 3 (DS_SUPPLY): Existing Supply Events
                     {
                         label: 'Existing Supply',
                         data: supplyPoints,
@@ -231,7 +264,7 @@
                         borderWidth: 1,
                         order: 1
                     },
-                    // Dataset 3: Demand Events
+                    // Dataset 4 (DS_DEMAND): Demand Events
                     {
                         label: 'Demand',
                         data: demandPoints,
@@ -245,7 +278,7 @@
                         borderWidth: 1,
                         order: 1
                     },
-                    // Dataset 4: Suggested Supply (current worksheet)
+                    // Dataset 5 (DS_SUGG_SUPPLY): Suggested Supply (current worksheet)
                     {
                         label: 'Suggested Supply',
                         data: suggestionPoints,
@@ -258,7 +291,7 @@
                         borderWidth: 2,
                         order: 0
                     },
-                    // Dataset 5: Pending Req. Lines (other worksheets)
+                    // Dataset 6 (DS_PENDING): Pending Req. Lines (other worksheets)
                     {
                         label: 'Pending Req. Lines',
                         data: pendingReqPoints,
@@ -272,7 +305,7 @@
                         borderDash: [3, 2],
                         order: 0
                     },
-                    // Dataset 6: Planning Components (dependent demand)
+                    // Dataset 7 (DS_PLAN_COMP): Planning Components (dependent demand)
                     {
                         label: 'Planning Components',
                         data: planningCompPoints,
@@ -286,7 +319,7 @@
                         borderWidth: 2,
                         order: 0
                     },
-                    // Dataset 7: Demand Forecast (real demand, included in running totals)
+                    // Dataset 8 (DS_FORECAST): Demand Forecast (informational)
                     {
                         label: 'Demand Forecast',
                         data: forecastPoints,
@@ -339,8 +372,8 @@
                                 var ds = context.dataset;
                                 var raw = context.raw;
 
-                                // Projection lines
-                                if (context.datasetIndex <= 1) {
+                                // Projection lines (datasets 0-2)
+                                if (context.datasetIndex <= DS_SUGGESTED) {
                                     return ds.label + ': ' + formatQty(raw.y);
                                 }
 
@@ -351,7 +384,7 @@
                                         var lines = [evt.type + ': ' + formatQty(evt.qty)];
                                         if (evt.description) lines.push(evt.description);
                                         if (evt.actionMessage) lines.push('Action: ' + evt.actionMessage);
-                                        lines.push('Projected Inventory: ' + formatQty(evt.balanceAfter));
+                                        lines.push('Suggested Projected Inventory: ' + formatQty(evt.balanceAfter));
                                         return lines;
                                     }
                                 }
@@ -372,7 +405,7 @@
                         ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 20 }
                     },
                     y: {
-                        title: { display: true, text: 'Inventory Quantity', font: { size: 13 } },
+                        title: { display: true, text: 'Suggested Projected Inventory', font: { size: 13 } },
                         beginAtZero: false
                     }
                 }
@@ -387,16 +420,16 @@
         afterDatasetsDraw: function (chart) {
             if (!showTracking || !chartData || !chartData.trackingPairs) return;
             var ctx = chart.ctx;
-            var meta2 = chart.getDatasetMeta(2); // supply
-            var meta3 = chart.getDatasetMeta(3); // demand
-            var meta4 = chart.getDatasetMeta(4); // suggestions
-            var meta5 = chart.getDatasetMeta(5); // pending req lines
-            var meta6 = chart.getDatasetMeta(6); // planning components
-            var meta7 = chart.getDatasetMeta(7); // demand forecast
+            var metaSupply = chart.getDatasetMeta(DS_SUPPLY);
+            var metaDemand = chart.getDatasetMeta(DS_DEMAND);
+            var metaSuggSupply = chart.getDatasetMeta(DS_SUGG_SUPPLY);
+            var metaPending = chart.getDatasetMeta(DS_PENDING);
+            var metaPlanComp = chart.getDatasetMeta(DS_PLAN_COMP);
+            var metaForecast = chart.getDatasetMeta(DS_FORECAST);
 
             chartData.trackingPairs.forEach(function (pair) {
-                var supplyPt = findPointPixel(chart, pair.supplyEntryNo, [meta2, meta4, meta5]);
-                var demandPt = findPointPixel(chart, pair.demandEntryNo, [meta3, meta6, meta7]);
+                var supplyPt = findPointPixel(chart, pair.supplyEntryNo, [metaSupply, metaSuggSupply, metaPending]);
+                var demandPt = findPointPixel(chart, pair.demandEntryNo, [metaDemand, metaPlanComp, metaForecast]);
 
                 if (supplyPt && demandPt) {
                     ctx.save();
@@ -779,16 +812,16 @@
 
     window.UpdateVisibility = function (showExisting, showSuggested, showDemand) {
         if (!chartInstance) return;
-        chartInstance.setDatasetVisibility(2, showExisting);
-        chartInstance.setDatasetVisibility(3, showDemand);
-        chartInstance.setDatasetVisibility(4, showSuggested);
+        chartInstance.setDatasetVisibility(DS_SUPPLY, showExisting);
+        chartInstance.setDatasetVisibility(DS_DEMAND, showDemand);
+        chartInstance.setDatasetVisibility(DS_SUGG_SUPPLY, showSuggested);
         chartInstance.update();
     };
 
     window.ToggleProjection = function (showBefore, showAfter) {
         if (!chartInstance) return;
-        chartInstance.setDatasetVisibility(0, showBefore);
-        chartInstance.setDatasetVisibility(1, showAfter);
+        chartInstance.setDatasetVisibility(DS_PAB, showBefore);
+        chartInstance.setDatasetVisibility(DS_SUGGESTED, showAfter);
         chartInstance.update();
     };
 

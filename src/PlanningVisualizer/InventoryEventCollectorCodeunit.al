@@ -14,6 +14,7 @@ codeunit 50160 "Inventory Event Collector"
         IncludeSuggestions: Boolean;
         WorksheetTemplateName: Code[10];
         JournalBatchName: Code[10];
+        ForecastName: Code[10];
         var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     begin
@@ -38,8 +39,8 @@ codeunit 50160 "Inventory Event Collector"
         CollectPlanningComponents(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
         CollectBlanketSalesOrders(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
 
-        // Demand forecast (included in running totals as real demand)
-        CollectDemandForecast(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
+        // Demand forecast (informational: included in Forecasted and Suggested projections, excluded from PAB)
+        CollectDemandForecast(ItemNo, LocationCode, VariantCode, StartDate, EndDate, ForecastName, TempEventBuffer);
 
         // Supply sources
         CollectPurchaseOrders(ItemNo, LocationCode, VariantCode, StartDate, EndDate, TempEventBuffer);
@@ -85,6 +86,7 @@ codeunit 50160 "Inventory Event Collector"
             Item.Inventory,
             true, // is supply
             false, // not suggestion
+            false, // not informational
             StrSubstNo('On-hand inventory: %1', Item.Inventory),
             0, '', 0, Page::"Item Card"
         );
@@ -119,6 +121,7 @@ codeunit 50160 "Inventory Event Collector"
                     SalesLine."Shipment Date",
                     "Inventory Event Type"::"Sales Order",
                     -SalesLine."Outstanding Qty. (Base)",
+                    false,
                     false,
                     false,
                     StrSubstNo('Sales Order %1, Line %2', SalesLine."Document No.", SalesLine."Line No."),
@@ -161,6 +164,7 @@ codeunit 50160 "Inventory Event Collector"
                     -ProdOrderComp."Remaining Qty. (Base)",
                     false,
                     false,
+                    false,
                     StrSubstNo('Prod. Order Comp %1, Line %2', ProdOrderComp."Prod. Order No.", ProdOrderComp."Line No."),
                     5407, ProdOrderComp."Prod. Order No.", ProdOrderComp."Line No.",
                     GetProdOrderPageId(ProdOrderComp.Status)
@@ -199,6 +203,7 @@ codeunit 50160 "Inventory Event Collector"
                     -AssemblyLine."Remaining Quantity (Base)",
                     false,
                     false,
+                    false,
                     StrSubstNo('Assembly Comp %1, Line %2', AssemblyLine."Document No.", AssemblyLine."Line No."),
                     901, AssemblyLine."Document No.", AssemblyLine."Line No.",
                     Page::"Assembly Order"
@@ -233,6 +238,7 @@ codeunit 50160 "Inventory Event Collector"
                     TransferLine."Shipment Date",
                     "Inventory Event Type"::"Transfer Out",
                     -TransferLine."Outstanding Qty. (Base)",
+                    false,
                     false,
                     false,
                     StrSubstNo('Transfer Out %1 to %2', TransferLine."Document No.", TransferLine."Transfer-to Code"),
@@ -273,6 +279,7 @@ codeunit 50160 "Inventory Event Collector"
                     -ServiceLine."Outstanding Qty. (Base)",
                     false,
                     false,
+                    false,
                     StrSubstNo('Service Order %1, Line %2', ServiceLine."Document No.", ServiceLine."Line No."),
                     5902, ServiceLine."Document No.", ServiceLine."Line No.",
                     Page::"Service Order"
@@ -308,6 +315,7 @@ codeunit 50160 "Inventory Event Collector"
                     JobPlanningLine."Planning Date",
                     "Inventory Event Type"::"Job Planning",
                     -JobPlanningLine."Remaining Qty. (Base)",
+                    false,
                     false,
                     false,
                     StrSubstNo('Job %1, Task %2', JobPlanningLine."Job No.", JobPlanningLine."Job Task No."),
@@ -349,6 +357,7 @@ codeunit 50160 "Inventory Event Collector"
                     -PlanningComponent."Expected Quantity (Base)",
                     false,
                     true, // treat as suggestion since it depends on req. line being carried out
+                    false,
                     StrSubstNo('Planning Comp for %1 Line %2',
                         PlanningComponent."Worksheet Template Name", PlanningComponent."Line No."),
                     0, '', PlanningComponent."Line No.",
@@ -388,6 +397,7 @@ codeunit 50160 "Inventory Event Collector"
                     -SalesLine."Outstanding Qty. (Base)",
                     false,
                     false,
+                    false,
                     StrSubstNo('Blanket Sales Order %1, Line %2', SalesLine."Document No.", SalesLine."Line No."),
                     37, SalesLine."Document No.", SalesLine."Line No.",
                     Page::"Blanket Sales Order"
@@ -401,6 +411,7 @@ codeunit 50160 "Inventory Event Collector"
         VariantCode: Code[10];
         StartDate: Date;
         EndDate: Date;
+        ForecastName: Code[10];
         var TempEventBuffer: Record "Visualizer Event Buffer" temporary
     )
     var
@@ -417,6 +428,8 @@ codeunit 50160 "Inventory Event Collector"
         ProdForecastEntry.SetRange("Item No.", ItemNo);
         ProdForecastEntry.SetRange("Forecast Date", LookbackDate, EndDate);
         ProdForecastEntry.SetFilter("Forecast Quantity (Base)", '>0');
+        if ForecastName <> '' then
+            ProdForecastEntry.SetRange("Production Forecast Name", ForecastName);
         // Include both location-specific AND blank-location (global) forecasts.
         // BC's planning engine considers global forecasts for all locations.
         if LocationCode <> '' then
@@ -438,6 +451,7 @@ codeunit 50160 "Inventory Event Collector"
                     -ProdForecastEntry."Forecast Quantity (Base)",
                     false,
                     false,
+                    true, // informational: excluded from PAB, included in Forecasted/Suggested
                     StrSubstNo('Demand Forecast: %1 (%2)',
                         ProdForecastEntry."Production Forecast Name", ProdForecastEntry.Description),
                     0, '', 0,
@@ -483,6 +497,7 @@ codeunit 50160 "Inventory Event Collector"
                         ReqLine.Quantity,
                         true,
                         true, // treat as suggestion since not yet carried out
+                        false,
                         StrSubstNo('Pending %1 %2 (Wksh: %3/%4)',
                             Format(ReqLine."Replenishment System"), ReqLine."Ref. Order No.",
                             ReqLine."Worksheet Template Name", ReqLine."Journal Batch Name"),
@@ -522,6 +537,7 @@ codeunit 50160 "Inventory Event Collector"
                     "Inventory Event Type"::"Purchase Order",
                     PurchaseLine."Outstanding Qty. (Base)",
                     true,
+                    false,
                     false,
                     StrSubstNo('Purchase Order %1, Line %2', PurchaseLine."Document No.", PurchaseLine."Line No."),
                     39, PurchaseLine."Document No.", PurchaseLine."Line No.",
@@ -563,6 +579,7 @@ codeunit 50160 "Inventory Event Collector"
                     ProdOrderLine."Remaining Qty. (Base)",
                     true,
                     false,
+                    false,
                     StrSubstNo('Prod. Order %1, Line %2', ProdOrderLine."Prod. Order No.", ProdOrderLine."Line No."),
                     5406, ProdOrderLine."Prod. Order No.", ProdOrderLine."Line No.",
                     GetProdOrderPageId(ProdOrderLine.Status)
@@ -600,6 +617,7 @@ codeunit 50160 "Inventory Event Collector"
                     AssemblyHeader."Remaining Quantity (Base)",
                     true,
                     false,
+                    false,
                     StrSubstNo('Assembly Order %1', AssemblyHeader."No."),
                     900, AssemblyHeader."No.", 0,
                     Page::"Assembly Order"
@@ -635,6 +653,7 @@ codeunit 50160 "Inventory Event Collector"
                     "Inventory Event Type"::"Transfer In",
                     TransferLine."Outstanding Qty. (Base)",
                     true,
+                    false,
                     false,
                     StrSubstNo('Transfer In %1 from %2', TransferLine."Document No.", TransferLine."Transfer-from Code"),
                     5741, TransferLine."Document No.", TransferLine."Line No.",
@@ -871,6 +890,7 @@ codeunit 50160 "Inventory Event Collector"
         Qty: Decimal;
         IsSupply: Boolean;
         IsSuggestion: Boolean;
+        IsInformational: Boolean;
         Description: Text[100];
         SourceDocType: Integer;
         SourceDocNo: Code[20];
@@ -889,6 +909,7 @@ codeunit 50160 "Inventory Event Collector"
         TempEventBuffer.Quantity := Qty;
         TempEventBuffer."Is Supply" := IsSupply;
         TempEventBuffer."Is Suggestion" := IsSuggestion;
+        TempEventBuffer."Is Informational" := IsInformational;
         TempEventBuffer."Source Description" := Description;
         TempEventBuffer."Source Document Type" := SourceDocType;
         TempEventBuffer."Source Document No." := SourceDocNo;

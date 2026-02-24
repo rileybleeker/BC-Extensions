@@ -42,6 +42,19 @@ page 50160 "Planning Worksheet Visualizer"
                     Editable = false;
                     ToolTip = 'The variant filter applied.';
                 }
+                field(ForecastNameField; ForecastName)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Demand Forecast Name';
+                    Editable = true;
+                    ToolTip = 'Select which demand forecast to include in projections. Defaults to the Current Production Forecast from Manufacturing Setup.';
+                    TableRelation = "Production Forecast Name".Name;
+
+                    trigger OnValidate()
+                    begin
+                        LoadVisualizerData();
+                    end;
+                }
             }
             group(PlanningParams)
             {
@@ -124,6 +137,7 @@ page 50160 "Planning Worksheet Visualizer"
         ItemDescription: Text[100];
         LocationCode: Code[10];
         VariantCode: Code[10];
+        ForecastName: Code[10];
         WorksheetTemplateName: Code[10];
         JournalBatchName: Code[10];
         ReorderingPolicyText: Text[50];
@@ -144,6 +158,7 @@ page 50160 "Planning Worksheet Visualizer"
     )
     var
         Item: Record Item;
+        ManufacturingSetup: Record "Manufacturing Setup";
     begin
         ItemNo := NewItemNo;
         LocationCode := NewLocationCode;
@@ -154,6 +169,9 @@ page 50160 "Planning Worksheet Visualizer"
 
         if Item.Get(ItemNo) then
             ItemDescription := Item.Description;
+
+        if ManufacturingSetup.Get() then
+            ForecastName := ManufacturingSetup."Current Production Forecast";
     end;
 
     local procedure LoadVisualizerData()
@@ -183,6 +201,7 @@ page 50160 "Planning Worksheet Visualizer"
             ItemNo, LocationCode, VariantCode,
             Today, EndDate,
             true, WorksheetTemplateName, JournalBatchName,
+            ForecastName,
             TempEventBuffer
         );
 
