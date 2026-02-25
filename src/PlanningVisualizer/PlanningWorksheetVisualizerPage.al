@@ -4,7 +4,7 @@ page 50160 "Planning Worksheet Visualizer"
     ApplicationArea = All;
     Caption = 'Planning Worksheet Visualizer';
     UsageCategory = None;
-    Editable = false;
+    Editable = true;
 
     layout
     {
