@@ -48,11 +48,20 @@ page 50160 "Planning Worksheet Visualizer"
                     Caption = 'Demand Forecast Name';
                     Editable = true;
                     ToolTip = 'Select which demand forecast to include in projections. Defaults to the Current Production Forecast from Manufacturing Setup.';
-                    TableRelation = "Production Forecast Name".Name;
 
                     trigger OnValidate()
                     begin
                         LoadVisualizerData();
+                    end;
+
+                    trigger OnLookup(var Text: Text): Boolean
+                    var
+                        ProdForecastName: Record "Production Forecast Name";
+                    begin
+                        if Page.RunModal(Page::"Demand Forecast Names", ProdForecastName) = Action::LookupOK then begin
+                            ForecastName := ProdForecastName.Name;
+                            LoadVisualizerData();
+                        end;
                     end;
                 }
             }
